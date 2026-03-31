@@ -1,0 +1,35 @@
+<server>
+<!--
+    Licensed Materials - Property of IBM
+    (c) Copyright IBM Corporation 2015. All Rights Reserved.
+
+    Note to U.S. Government Users Restricted Rights:
+    Use, duplication or disclosure restricted by GSA ADP Schedule
+    Contract with IBM Corp.
+ -->
+    <featureManager>
+        <feature>ldapRegistry-3.0</feature>
+        <feature>scim-1.0</feature>
+    </featureManager>
+
+    <!-- LDAP user registry configuration -->
+    <ldapRegistry
+        id="@!ldapFqdn!@:@!ldapPort!@" realm="@!ldapFqdn!@:@!ldapPort!@"
+        ignoreCase="false"
+        recursiveSearch="true" sslEnabled="false"
+        host="@!ldapFqdn!@" port="@!ldapPort!@"
+        baseDN="dc=intercax,dc=com"
+        ldapType="Custom">
+        <customFilters
+            userFilter="(&amp;(uid=%v)(objectclass=posixAccount))"
+            groupFilter="(&amp;(cn=%v)(|(objectclass=groupOfNames)(objectclass=groupOfUniqueNames)))"
+            groupIdMap="*:cn"
+            groupMemberIdMap="*:uniqueMember"
+            userIdMap="*:uid"/>
+    </ldapRegistry>
+
+    <administrator-role>
+		<user>@!jtsUserName!@</user>
+	</administrator-role>
+
+</server>

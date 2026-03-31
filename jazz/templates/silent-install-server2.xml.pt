@@ -1,0 +1,59 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- @!timestamp!@ -->
+
+<agent-input clean='true' temporary='true'>
+
+  <server>
+
+    <repository location='@!unzippedAllDir!@' />
+    <repository location='@!dmRepoDir!@' />
+
+  </server>
+
+  <profile id='IBM Collaborative Lifecycle Management'>
+    <data key='cic.selector.arch' value='x86_64'/>
+    <data key='user.com.ibm.team.install.prereq.timestamp' value='20160408-2021-47'/>
+    <data key='user.com.ibm.team.install.jfs.app.jazz.context-root' value='jts'/>
+    <data key='user.com.ibm.team.install.jfs.appserver.user-override' value='true'/>
+    <data key='user.com.ibm.team.install.jfs.appserver.noappserver.disable' value='true'/>
+    <data key='user.com.ibm.team.install.jfs.appserver.tomcat.disable' value='true'/>
+    <data key='user.com.ibm.team.install.jfs.appserver.liberty.disable' value='false'/>
+    <data key='user.com.ibm.team.install.jfs.app.ldx.context-root' value='ldx'/>
+    <data key='user.com.ibm.team.install.jfs.app.rqm.context-root' value='qm'/>
+    <data key='user.com.ibm.team.install.jfs.app.dm.context-root' value='dm'/>
+    <data key='user.com.ibm.team.install.jfs.app.rtc.context-root' value='ccm'/>
+    <data key='user.com.ibm.team.install.jfs.app.rdmhelp.context-root' value='rdmhelp'/>
+    <data key='user.com.ibm.team.install.jfs.app.lqe.context-root' value='lqe'/>
+    <data key='user.com.ibm.team.install.jfs.app.rdm.context-root' value='rm'/>
+    <data key='user.com.ibm.team.install.jfs.app.relmhelp.context-root' value='relmhelp'/>
+    <data key='user.com.ibm.team.install.jfs.app.relm.context-root' value='relm'/>
+    <data key='user.com.ibm.team.install.jfs.app.clmhelp.context-root' value='clmhelp'/>
+    <data key='user.com.ibm.team.install.jfs.app.dcc.context-root' value='dcc'/>
+    <data key='user.com.ibm.team.install.jfs.app.rs.context-root' value='rs'/>
+    <data key='user.com.ibm.team.install.jfs.app.gc.context-root' value='gc'/>
+    <data key='user.com.ibm.team.install.jfs.sso.oidc.enable' value='false'/>
+    <data key='cic.selector.nl' value='fr,en'/>
+  </profile>
+
+  <install>
+    <!-- Change and Configuration Management -->
+    <offering profile='IBM Collaborative Lifecycle Management' id='com.ibm.team.install.jfs.app.rtc' />
+    <!-- Global Configuration Management -->
+    <offering profile='IBM Collaborative Lifecycle Management' id='com.ibm.team.install.jfs.app.gc' />
+    <!-- IBM Jazz Reporting Service -->
+    <offering profile='IBM Collaborative Lifecycle Management' id='com.ibm.team.install.jfs.app.jrs' />
+    <!-- Jazz Team Server -->
+    <offering profile='IBM Collaborative Lifecycle Management' id='com.ibm.team.install.jfs.app.jts' />
+    <!-- Quality Management -->
+    <offering profile='IBM Collaborative Lifecycle Management' id='com.ibm.team.install.jfs.app.rqm' />
+    <!-- Rational Engineering Lifecycle Manager -->
+    <offering profile='IBM Collaborative Lifecycle Management' id='com.ibm.team.install.jfs.app.relm' />
+    <!-- Requirements Management -->
+    <offering profile='IBM Collaborative Lifecycle Management' id='com.ibm.team.install.jfs.app.rdm' />
+    <!-- Link Index Provider -->
+    <offering profile='IBM Collaborative Lifecycle Management' id='com.ibm.team.install.jfs.app.ldx' />
+    <!-- Trial keys for Collaborative Lifecycle Management Products -->
+    <offering profile='IBM Collaborative Lifecycle Management' id='com.ibm.team.install.jfs.app.product-clm' />
+  </install>
+
+</agent-input>

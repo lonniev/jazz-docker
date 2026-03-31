@@ -1,0 +1,180 @@
+services:
+
+  traefik:
+    image: "traefik:v3.3"
+    container_name: "traefik"
+    depends_on:
+     - whoami
+    labels:
+      traefik.docker.network: "${COMPOSE_PROJECT_NAME}_traefik_network"
+      traefik.http.services.dashboard.loadbalancer.server.scheme: "https"
+    environment:
+      - TZ=America/New_York
+    command:
+      - "--accesslog.fields.names.StartUTC=drop"
+      - "--log.level=WARN"
+      - "--api.insecure=true"
+      - "--providers.docker=true"
+      - "--providers.docker.exposedbydefault=false"
+      - "--providers.docker.network=${COMPOSE_PROJECT_NAME}_traefik_network"
+      - "--entrypoints.traefik-entry-http_open.address=:80"
+      - "--entrypoints.traefik-entry-clm_tls.address=:${CLM_PORT}"
+      - "--entrypoints.traefik-entry-jas_tls.address=:${JAS_HTTPS_PORT}"
+      - "--certificatesresolvers.myresolver.acme.httpchallenge=true"
+      - "--certificatesresolvers.myresolver.acme.httpchallenge.entrypoint=traefik-entry-http_open"
+      - "--certificatesresolvers.myresolver.acme.email=lonniev@gmail.com"
+      - "--certificatesresolvers.myresolver.acme.storage=/letsencrypt/acme.json"
+      - "--serverstransport.insecureskipverify=true"
+    networks:
+      traefik_network:
+    ports:
+      - "80:80"
+      - "${CLM_PORT}:${CLM_PORT}"
+      - "${JAS_HTTPS_PORT}:${JAS_HTTPS_PORT}"
+    volumes:
+      - "./letsencrypt:/letsencrypt"
+      - "/var/run/docker.sock:/var/run/docker.sock:ro"
+
+  whoami:
+    container_name: traefik_whoami
+    image: "traefik/whoami"
+    networks:
+      traefik_network:
+    expose:
+      - 80
+    labels:
+      traefik.enable: "true"
+      traefik.docker.network: "${COMPOSE_PROJECT_NAME}_traefik_network"
+      traefik.http.services.whoami.loadbalancer.server.port: "80"
+      traefik.http.routers.whoami.rule: "( Host(`whoami.docker.localhost`) || Host(`localhost`) ) && PathPrefix(`/whoami`)"
+      traefik.http.routers.whoami.entrypoints: "traefik-entry-http_open"
+
+  jazz_oracle:
+    labels:
+      com.intercax.intent: >-
+        This jazz_oracle container is the backend database storage for the Jazz CLM applications.
+        A single Oracle 19c instance hosts a pluggable database (PDB) containing separate schemas
+        for each of the 11 Jazz applications (JTS, CCM, QM, RM, LQE, LDX, DCC, GC, RELM, DM, DW)
+        plus the OAuth2 schema for Jazz Auth Server.
+      traefik.enable: "false"
+    image: ${ORACLE_IMAGE}
+    container_name: jazz-oracle-container
+    healthcheck:
+      test: ["CMD-SHELL", "echo 'SELECT 1 FROM DUAL;' | sqlplus -s / as sysdba | grep -q 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 30
+      start_period: 120s
+    environment:
+      ORACLE_SID: "ORCLCDB"
+      ORACLE_PDB: "${ORACLE_PDB}"
+      ORACLE_PWD: "${ORACLE_SYS_PASSWORD}"
+      ORACLE_CHARACTERSET: "AL32UTF8"
+      INIT_SGA_SIZE: "1536"
+      INIT_PGA_SIZE: "512"
+    hostname: "${ORACLE_FQDN}"
+    expose:
+      - "${ORACLE_PORT}"
+    networks:
+      service_network:
+        aliases:
+          - "${ORACLE_FQDN}"
+    volumes:
+      - oracle-data:/opt/oracle/oradata
+      - ./oracle/createschema.sh:/opt/oracle/scripts/startup/01_createschema.sh
+    shm_size: "2g"
+    deploy:
+      resources:
+        limits:
+          memory: 4G
+    ulimits:
+      nofile:
+        soft: 65536
+        hard: 65536
+      nproc:
+        soft: 10000
+        hard: 10000
+
+  jazz_clm:
+    container_name: jazz-clm-container
+    labels:
+      com.intercax.intent: >-
+        This jazz_clm service hosts the Jazz CLM applications GC, CCM, RM, QM, RELM, LQE, DM, etc.
+        It uses the jazz_oracle service for its backend storage. It expects to be connected to the
+        traefik service to expose its service to the outside network.
+      traefik.enable: "true"
+      traefik.docker.network: "${COMPOSE_PROJECT_NAME}_traefik_network"
+      # listen for requests to CLM_FQDN : JAS_HTTPS_PORT and handle at jazz_clm : JAS_HTTPS_PORT
+      traefik.http.routers.traefix-router-jazz_auth.rule: "Host(`${CLM_FQDN}`)"
+      traefik.http.routers.traefix-router-jazz_auth.entrypoints: "traefik-entry-jas_tls"
+      traefik.http.routers.traefix-router-jazz_auth.tls: "true"
+      traefik.http.routers.traefix-router-jazz_auth.tls.certresolver: "myresolver"
+      traefik.http.services.traefik-service-jazz_auth.loadbalancer.server.scheme: "https"
+      traefik.http.services.traefik-service-jazz_auth.loadbalancer.server.port: "${JAS_HTTPS_PORT}"
+      traefik.http.routers.traefix-router-jazz_auth.service: "traefik-service-jazz_auth"
+      #
+      # listen for requests to CLM_FQDN : CLM_PORT and handle at jazz_clm : CLM_PORT
+      traefik.http.routers.traefix-router-jazz_app.rule: "Host(`${CLM_FQDN}`)"
+      traefik.http.routers.traefix-router-jazz_app.entrypoints: "traefik-entry-clm_tls"
+      traefik.http.routers.traefix-router-jazz_app.tls: "true"
+      traefik.http.routers.traefix-router-jazz_app.tls.certresolver: "myresolver"
+      traefik.http.services.traefik-service-jazz_app.loadbalancer.server.scheme: "https"
+      traefik.http.services.traefik-service-jazz_app.loadbalancer.server.port: "${CLM_PORT}"
+      traefik.http.routers.traefix-router-jazz_app.service: "traefik-service-jazz_app"
+    depends_on:
+      jazz_oracle:
+        condition: service_healthy
+      traefik:
+        condition: service_started
+    image: clm-jazz:latest
+    command: /bin/bash -c "/opt/jazz-medium/getItBuildItRunIt.sh & tail -f /var/log/syslog & wait"
+    build:
+      context: ./jazz/
+      args:
+        JAZZ_DISTRO_URL: ${JAZZ_DISTRO_URL}
+        JAZZ_JAS_URL: ${JAZZ_JAS_URL}
+        JAZZ_IFIX_URL: ${JAZZ_IFIX_URL}
+        DM_DISTRO_URL: ${DM_DISTRO_URL}
+        IBMWEBINSTALLER_DISTRO_URL: ${IBMWEBINSTALLER_DISTRO_URL}
+        CLM_FQDN: ${CLM_FQDN}
+        CLM_PORT: ${CLM_PORT}
+        ORACLE_FQDN: ${ORACLE_FQDN}
+        ORACLE_PORT: ${ORACLE_PORT}
+        ORACLE_USER: ${ORACLE_USER}
+        ORACLE_PASSWORD: ${ORACLE_PASSWORD}
+        ORACLE_PDB: ${ORACLE_PDB}
+        JAZZ_USER: ${JAZZ_USER}
+        JAZZ_ADMIN_PASSWORD: ${JAZZ_ADMIN_PASSWORD}
+        LDAP_FQDN: ${LDAP_FQDN}
+        LDAP_PORT: ${LDAP_PORT}
+        JAS_HTTPS_PORT: ${JAS_HTTPS_PORT}
+        JAS_HTTP_PORT: ${JAS_HTTP_PORT}
+    expose:
+      - "${CLM_PORT}"
+      - "${JAS_HTTPS_PORT}"
+    networks:
+      traefik_network:
+      service_network:
+    volumes:
+      - jazz-home:/home
+      - jazz-installed:/opt/IBM
+    deploy:
+      resources:
+        limits:
+          memory: 4G
+    ulimits:
+      nofile:
+        soft: 65536
+        hard: 65536
+      nproc:
+        soft: 10000
+        hard: 10000
+
+volumes:
+  oracle-data:
+  jazz-home:
+  jazz-installed:
+
+networks:
+  service_network:
+  traefik_network:

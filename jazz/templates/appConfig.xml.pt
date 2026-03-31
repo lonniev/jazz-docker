@@ -1,0 +1,104 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+    Licensed Materials - Property of IBM
+    (c) Copyright IBM Corporation 2014, 2020. All Rights Reserved.
+
+    Note to U.S. Government Users Restricted Rights:
+    Use, duplication or disclosure restricted by GSA ADP Schedule
+    Contract with IBM Corp.
+ -->
+
+<!--
+    Deployment descriptor for the Jazz Authorization Server.
+    Adapted for Oracle 19c backend.
+ -->
+
+<server>
+
+    <!-- The Jazz OP application provides the login form and the standard Jazz security roles -->
+    <application
+     id="com.ibm.team.integration.jazzop"
+     location="jazzop.war"
+     name="com.ibm.team.integration.jazzop"
+     context-root="jazzop"
+     type="war">
+        <application-bnd>
+            <security-role name="JazzAdmins">
+                <group name="JazzAdmins"/>
+            </security-role>
+            <security-role name="JazzUsers">
+                <group name="JazzUsers"/>
+            </security-role>
+            <security-role name="JazzProjectAdmins">
+                <group name="JazzProjectAdmins"/>
+            </security-role>
+            <security-role name="JazzGuests">
+                <group name="JazzGuests"/>
+            </security-role>
+            <security-role name="JazzDebug">
+                <group name="JazzDebug"/>
+            </security-role>
+        </application-bnd>
+    </application>
+
+    <!-- Default port numbers used in URLs -->
+	<httpEndpoint host="*" httpPort="@!jasHttpPort!@" httpsPort="@!jasHttpsPort!@" id="defaultHttpEndpoint"/>
+
+    <!-- Default LTPA token expiration time -->
+    <ltpa expiration="120m" />
+
+    <!-- This setting is required -->
+    <httpSession invalidateOnUnauthorizedSessionRequestException="true" />
+
+    <!-- Default SSL Configuration -->
+    <keyStore
+        id="defaultKeyStore"
+        location="ibm-team.keystore"
+        type="JCEKS"
+        password="{xor}Nj0ycis6PjI="/>
+
+    <ssl id="defaultSSLConfig"
+     keyStoreRef="defaultKeyStore"
+     trustStoreRef="defaultKeyStore"
+     serverKeyAlias="sslkey"
+     clientAuthenticationSupported="true"/>
+
+	<!-- OpenID Connect Provider Configuration -->
+	<openidConnectProvider id="jazzop" oauthProviderRef="JazzOP" sessionManaged="true" />
+
+    <oauthProvider id="JazzOP"
+                httpsRequired="true"
+                autoAuthorize="true"
+                customLoginURL="/jazzop/form/login"
+                accessTokenLifetime="7201"
+                authorizationGrantLifetime="604801">
+        <autoAuthorizeClient>client01</autoAuthorizeClient>
+        <databaseStore dataSourceRef="OAUTH2DBDS" />
+    </oauthProvider>
+
+    <oauth-roles>
+        <authenticated>
+            <special-subject type="ALL_AUTHENTICATED_USERS" />
+        </authenticated>
+        <clientManager>
+            <group name="JazzAdmins" />
+            <user name="@!jtsUserName!@"/>
+        </clientManager>
+    </oauth-roles>
+
+    <!-- Oracle JDBC driver configuration for OAuth2 database -->
+    <jdbcDriver id="oracleDriver" libraryRef="OracleJDBCLib"/>
+    <library id="OracleJDBCLib" filesetRef="oracleJars" apiTypeVisibility="spec,ibm-api,third-party"/>
+    <fileset dir="${shared.config.dir}/lib/global" id="oracleJars" includes="ojdbc8.jar"/>
+    <dataSource id="OAUTH2DBDS" jndiName="jdbc/oauthProvider" jdbcDriverRef="oracleDriver">
+        <properties.oracle
+            URL="jdbc:oracle:thin:@//@!oracleServerFqdn!@:@!oracleServerPort!@/@!oraclePdb!@"
+            user="OAUTHDBSCHEMA"
+            password="@!oraclePassword!@"/>
+    </dataSource>
+
+    <!-- User Registry -->
+    <!--include location="localUserRegistry.xml" optional="true"/-->
+    <include location="ldapUserRegistry.xml" optional="true"/>
+
+</server>

@@ -1,0 +1,17 @@
+[Unit]
+Description=Jazz Team Server configured @!timestamp!@
+After=network.target
+
+[Service]
+ExecStart=@!jtsPath!@/server/server.startup
+ExecStop=@!jtsPath!@/server/server.shutdown
+Type=forking
+PIDFile=@!jtsPath!@/server/liberty/servers/.pid/clm.pid
+User=@!jtsUserId!@
+Group=@!jtsUserId!@
+WorkingDirectory=@!jtsPath!@/server
+LimitNOFILE=65536:65536
+LimitNPROC=10000:10000
+
+[Install]
+WantedBy=multi-user.target

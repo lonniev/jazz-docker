@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<agent-input clean='true' temporary='true'>
+
+	<server>
+		<!-- This repository contains the installation for JAS Jazz Authentication Server -->
+		<repository location='@!unzippedAllDir!@/im/repo/jlip-auth-offering/offering-repo' />
+
+		<!-- This repository contains the installation for IM -->
+		<repository location='@!unzippedImDir!@' temporary='true' />
+	</server>
+
+	<install>
+		<offering features='agent_core,agent_jre' id='com.ibm.cic.agent'/>
+	</install>
+
+	<install>
+		<offering id='com.ibm.team.install.jlip.auth'/>
+	</install>
+
+</agent-input>
