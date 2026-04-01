@@ -283,8 +283,8 @@ export JAVA_HOME="${jtsPath}/server/jre"
 oraJdbcJar="${jtsPath}/server/oracle/ojdbc8.jar"
 oraJdbcUrl="jdbc:oracle:thin:@//${oracleFqdn}:${oraclePort}/${oraclePdb}"
 
-maxRetries=60
-retryInterval=10
+maxRetries=120
+retryInterval=15
 
 for (( i=1; i<=maxRetries; i++ ))
 do
