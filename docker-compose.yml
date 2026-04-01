@@ -127,6 +127,8 @@ services:
       traefik:
         condition: service_started
     image: clm-jazz:latest
+    extra_hosts:
+      - "${CLM_FQDN}:127.0.0.1"
     command: /bin/bash -c "/opt/jazz-medium/getItBuildItRunIt.sh & tail -f /var/log/syslog & wait"
     build:
       context: ./jazz/
