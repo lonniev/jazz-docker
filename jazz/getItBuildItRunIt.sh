@@ -173,7 +173,7 @@ then
 
         cd "${installerPath}"
 
-        ./userinstc -acceptLicense -input ${ifixDir} --launcher.ini user-silent-install.ini -installFixes recommended > /home/${jazzAdmin}/ifix-installation.log 2>&1
+        ./userinstc -acceptLicense -installFixes recommended -repositories ${ifixDir} --launcher.ini user-silent-install.ini install > /home/${jazzAdmin}/ifix-installation.log 2>&1
 
         errorCount=\$(grep -i error ~/ifix-installation.log | wc -l)
 
