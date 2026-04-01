@@ -159,48 +159,50 @@ then
 
 fi
 
-# Apply iFix if present (as root for filesystem access, then as jazz_admin for IM)
+# Apply iFix if present.
+# ELM iFixes are file-overlay patches (not IM repositories):
+#   - ELM_server_patch_*.zip: class/resource files overlaid on the installed server
+#   - *.war files (lqe.war, rs.war, ldx.war): replacement WARs for Liberty apps
+# These are applied BEFORE the server is relocated to /opt/IBM.
 if [[ -f ${mediaPath}/ifix.zip ]]
 then
 
-    tput -T linux bold; echo "${green}Applying ELM iFix..."; tput -T linux sgr0
+    tput -T linux bold; echo "${green}Applying ELM iFix (file-overlay patch)..."; tput -T linux sgr0
 
     ifixDir=/opt/jazz-ifix
     mkdir -p ${ifixDir}
     unzip -o -q ${mediaPath}/ifix.zip -d ${ifixDir}
-    chown -R "${jazzAdmin}":"${jazzAdmin}" ${ifixDir}
 
-    su - "${jazzAdmin}" <<-IFIX_SCRIPT
+    # Extract the server patch zip over the installed JTS server
+    serverPatch=$(find ${ifixDir} -maxdepth 1 -name "ELM_server_patch_*.zip" | head -1)
+    if [[ -n "${serverPatch}" ]]
+    then
+        tput -T linux bold; echo "${green}Applying server patch: $(basename ${serverPatch})"; tput -T linux sgr0
+        unzip -o -q "${serverPatch}" -d "${jtsStagedPath}/server"
+        echo "  Server patch applied."
+    else
+        echo "  No ELM_server_patch_*.zip found in iFix bundle. Skipping server patch."
+    fi
 
-        # Use the *installed* Installation Manager's imcl, not the web installer's userinstc
-        installedImcl="/home/${jazzAdmin}/IBM/InstallationManager/eclipse/tools/imcl"
-
-        if [[ ! -x "\${installedImcl}" ]]
+    # Replace WAR files if present in the iFix
+    for warFile in ${ifixDir}/*.war
+    do
+        [[ ! -f "${warFile}" ]] && continue
+        warName=$(basename "${warFile}")
+        # Find where the WAR lives in the installed server
+        target=$(find "${jtsStagedPath}" -name "${warName}" -type f 2>/dev/null | head -1)
+        if [[ -n "${target}" ]]
         then
-            tput -T linux bold; echo "${red}Installed imcl not found at \${installedImcl}. Skipping iFix."; tput -T linux sgr0
-            exit 0
-        fi
-
-        tput -T linux bold; echo "${green}Applying iFix via installed IM at \${installedImcl}..."; tput -T linux sgr0
-
-        \${installedImcl} updateAll -acceptLicense -repositories ${ifixDir} -installFixes recommended -log /home/${jazzAdmin}/ifix-installation.log 2>&1
-
-        if [[ -f ~/ifix-installation.log ]]
-        then
-            errorCount=\$(grep -ic "^ERROR" ~/ifix-installation.log)
-
-            if [[ \$errorCount -ne 0 ]]
-            then
-                tput -T linux bold; echo "${red}iFix installation had errors. Here are the last 50 lines:"; tput -T linux sgr0
-                tail -50 ~/ifix-installation.log
-            else
-                tput -T linux bold; echo "${green}iFix applied successfully."; tput -T linux sgr0
-            fi
+            tput -T linux bold; echo "${green}Replacing WAR: ${warName}"; tput -T linux sgr0
+            cp -f "${warFile}" "${target}"
         else
-            tput -T linux bold; echo "${green}iFix completed (no log file produced — likely no updates needed)."; tput -T linux sgr0
+            echo "  WAR ${warName} not found in installed server — skipping."
         fi
+    done
 
-IFIX_SCRIPT
+    chown -R "${jazzAdmin}":"${jazzAdmin}" "${jtsStagedPath}"
+
+    tput -T linux bold; echo "${green}iFix overlay complete."; tput -T linux sgr0
 
 fi
 
