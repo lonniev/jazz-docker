@@ -20,13 +20,19 @@ services:
       - "--entrypoints.traefik-entry-http_open.address=:80"
       - "--entrypoints.traefik-entry-clm_tls.address=:${CLM_PORT}"
       - "--entrypoints.traefik-entry-jas_tls.address=:${JAS_HTTPS_PORT}"
-      - "--certificatesresolvers.myresolver.acme.httpchallenge=true"
-      - "--certificatesresolvers.myresolver.acme.httpchallenge.entrypoint=traefik-entry-http_open"
-      - "--certificatesresolvers.myresolver.acme.email=${ACME_EMAIL}"
-      - "--certificatesresolvers.myresolver.acme.storage=/letsencrypt/acme.json"
+      # ACME/Let's Encrypt - uncomment these when deploying with real public DNS
+      # - "--certificatesresolvers.myresolver.acme.httpchallenge=true"
+      # - "--certificatesresolvers.myresolver.acme.httpchallenge.entrypoint=traefik-entry-http_open"
+      # - "--certificatesresolvers.myresolver.acme.email=${ACME_EMAIL}"
+      # - "--certificatesresolvers.myresolver.acme.storage=/letsencrypt/acme.json"
       - "--serverstransport.insecureskipverify=true"
     networks:
       traefik_network:
+        aliases:
+          - "${CLM_FQDN}"
+      service_network:
+        aliases:
+          - "${CLM_FQDN}"
     ports:
       - "80:80"
       - "${CLM_PORT}:${CLM_PORT}"
@@ -108,7 +114,7 @@ services:
       traefik.http.routers.traefix-router-jazz_auth.rule: "Host(`${CLM_FQDN}`)"
       traefik.http.routers.traefix-router-jazz_auth.entrypoints: "traefik-entry-jas_tls"
       traefik.http.routers.traefix-router-jazz_auth.tls: "true"
-      traefik.http.routers.traefix-router-jazz_auth.tls.certresolver: "myresolver"
+      # traefik.http.routers.traefix-router-jazz_auth.tls.certresolver: "myresolver"
       traefik.http.services.traefik-service-jazz_auth.loadbalancer.server.scheme: "https"
       traefik.http.services.traefik-service-jazz_auth.loadbalancer.server.port: "${JAS_HTTPS_PORT}"
       traefik.http.routers.traefix-router-jazz_auth.service: "traefik-service-jazz_auth"
@@ -117,7 +123,7 @@ services:
       traefik.http.routers.traefix-router-jazz_app.rule: "Host(`${CLM_FQDN}`)"
       traefik.http.routers.traefix-router-jazz_app.entrypoints: "traefik-entry-clm_tls"
       traefik.http.routers.traefix-router-jazz_app.tls: "true"
-      traefik.http.routers.traefix-router-jazz_app.tls.certresolver: "myresolver"
+      # traefik.http.routers.traefix-router-jazz_app.tls.certresolver: "myresolver"
       traefik.http.services.traefik-service-jazz_app.loadbalancer.server.scheme: "https"
       traefik.http.services.traefik-service-jazz_app.loadbalancer.server.port: "${CLM_PORT}"
       traefik.http.routers.traefix-router-jazz_app.service: "traefik-service-jazz_app"
