@@ -33,14 +33,24 @@ schemas[RELM]=512
 schemas[DM]=512
 schemas[DW]=512
 
-# Connect to the PDB as SYS and create everything
+# Connect to the PDB as SYS and create everything (idempotent — skips if already exists)
 sqlplus -s "sys/${SYS_PWD}@localhost:1521/${ORACLE_PDB} as sysdba" <<EOSQL
+SET FEEDBACK OFF
+WHENEVER SQLERROR CONTINUE
 
--- Create a shared DBA user that Jazz applications will connect as
-CREATE USER ${JAZZ_DBA} IDENTIFIED BY "${JAZZ_DBA_PWD}"
-  DEFAULT TABLESPACE USERS
-  TEMPORARY TABLESPACE TEMP
-  QUOTA UNLIMITED ON USERS;
+-- Create a shared DBA user if it doesn't exist
+DECLARE
+  v_count NUMBER;
+BEGIN
+  SELECT COUNT(*) INTO v_count FROM dba_users WHERE username = UPPER('${JAZZ_DBA}');
+  IF v_count = 0 THEN
+    EXECUTE IMMEDIATE 'CREATE USER ${JAZZ_DBA} IDENTIFIED BY "${JAZZ_DBA_PWD}" DEFAULT TABLESPACE USERS TEMPORARY TABLESPACE TEMP QUOTA UNLIMITED ON USERS';
+    DBMS_OUTPUT.PUT_LINE('Created user ${JAZZ_DBA}');
+  ELSE
+    DBMS_OUTPUT.PUT_LINE('User ${JAZZ_DBA} already exists — skipping');
+  END IF;
+END;
+/
 
 GRANT CONNECT, RESOURCE, DBA TO ${JAZZ_DBA};
 GRANT CREATE SESSION TO ${JAZZ_DBA};
@@ -48,40 +58,43 @@ GRANT UNLIMITED TABLESPACE TO ${JAZZ_DBA};
 
 EOSQL
 
-status=$?
-if [ $status -ne 0 ]; then
-    echo "Warning: DBA user creation returned non-zero (may already exist). Continuing..."
-fi
-
 # Create a schema (Oracle user) and tablespace for each Jazz application
 for schema in "${!schemas[@]}"; do
 
     size="${schemas[$schema]}"
     ts_name="TS_${schema}"
 
-    echo "Creating tablespace ${ts_name} and schema ${schema} (${size}MB)..."
-
     sqlplus -s "sys/${SYS_PWD}@localhost:1521/${ORACLE_PDB} as sysdba" <<EOSQL
+    SET FEEDBACK OFF
+    SET SERVEROUTPUT ON
     WHENEVER SQLERROR CONTINUE
 
-    -- Create a dedicated tablespace for this Jazz app
-    CREATE TABLESPACE ${ts_name}
-      DATAFILE '${DATAFILE_DIR}/${schema,,}_data.dbf'
-      SIZE ${size}M
-      AUTOEXTEND ON NEXT 64M MAXSIZE UNLIMITED
-      EXTENT MANAGEMENT LOCAL AUTOALLOCATE
-      SEGMENT SPACE MANAGEMENT AUTO;
+    DECLARE
+      v_ts_count NUMBER;
+      v_user_count NUMBER;
+    BEGIN
+      -- Check/create tablespace
+      SELECT COUNT(*) INTO v_ts_count FROM dba_tablespaces WHERE tablespace_name = '${ts_name}';
+      IF v_ts_count = 0 THEN
+        EXECUTE IMMEDIATE 'CREATE TABLESPACE ${ts_name} DATAFILE ''${DATAFILE_DIR}/${schema,,}_data.dbf'' SIZE ${size}M AUTOEXTEND ON NEXT 64M MAXSIZE UNLIMITED EXTENT MANAGEMENT LOCAL AUTOALLOCATE SEGMENT SPACE MANAGEMENT AUTO';
+        DBMS_OUTPUT.PUT_LINE('Created tablespace ${ts_name}');
+      ELSE
+        DBMS_OUTPUT.PUT_LINE('Tablespace ${ts_name} already exists — skipping');
+      END IF;
 
-    -- Create the schema user
-    CREATE USER ${schema} IDENTIFIED BY "${JAZZ_DBA_PWD}"
-      DEFAULT TABLESPACE ${ts_name}
-      TEMPORARY TABLESPACE TEMP
-      QUOTA UNLIMITED ON ${ts_name};
+      -- Check/create schema user
+      SELECT COUNT(*) INTO v_user_count FROM dba_users WHERE username = '${schema}';
+      IF v_user_count = 0 THEN
+        EXECUTE IMMEDIATE 'CREATE USER ${schema} IDENTIFIED BY "${JAZZ_DBA_PWD}" DEFAULT TABLESPACE ${ts_name} TEMPORARY TABLESPACE TEMP QUOTA UNLIMITED ON ${ts_name}';
+        DBMS_OUTPUT.PUT_LINE('Created schema user ${schema}');
+      ELSE
+        DBMS_OUTPUT.PUT_LINE('Schema user ${schema} already exists — skipping');
+      END IF;
+    END;
+    /
 
     GRANT CONNECT, RESOURCE TO ${schema};
     GRANT CREATE SESSION, CREATE TABLE, CREATE VIEW, CREATE SEQUENCE, CREATE PROCEDURE TO ${schema};
-
-    -- Grant the DBA user full access to this schema
     GRANT ALL PRIVILEGES TO ${JAZZ_DBA};
 
 EOSQL
@@ -92,26 +105,50 @@ done
 echo "Creating OAuth2 schema for Jazz Authentication Server..."
 
 sqlplus -s "sys/${SYS_PWD}@localhost:1521/${ORACLE_PDB} as sysdba" <<EOSQL
+SET FEEDBACK OFF
+SET SERVEROUTPUT ON
 WHENEVER SQLERROR CONTINUE
 
--- Create tablespace for OAuth
-CREATE TABLESPACE TS_OAUTH2
-  DATAFILE '${DATAFILE_DIR}/oauth2_data.dbf'
-  SIZE 256M
-  AUTOEXTEND ON NEXT 64M MAXSIZE UNLIMITED
-  EXTENT MANAGEMENT LOCAL AUTOALLOCATE
-  SEGMENT SPACE MANAGEMENT AUTO;
+DECLARE
+  v_ts_count NUMBER;
+  v_user_count NUMBER;
+  v_tab_count NUMBER;
+BEGIN
+  -- Check/create OAuth tablespace
+  SELECT COUNT(*) INTO v_ts_count FROM dba_tablespaces WHERE tablespace_name = 'TS_OAUTH2';
+  IF v_ts_count = 0 THEN
+    EXECUTE IMMEDIATE 'CREATE TABLESPACE TS_OAUTH2 DATAFILE ''${DATAFILE_DIR}/oauth2_data.dbf'' SIZE 256M AUTOEXTEND ON NEXT 64M MAXSIZE UNLIMITED EXTENT MANAGEMENT LOCAL AUTOALLOCATE SEGMENT SPACE MANAGEMENT AUTO';
+    DBMS_OUTPUT.PUT_LINE('Created tablespace TS_OAUTH2');
+  ELSE
+    DBMS_OUTPUT.PUT_LINE('Tablespace TS_OAUTH2 already exists — skipping');
+  END IF;
 
--- Create the OAuth schema user
-CREATE USER OAUTHDBSCHEMA IDENTIFIED BY "Ora19Jazz!"
-  DEFAULT TABLESPACE TS_OAUTH2
-  TEMPORARY TABLESPACE TEMP
-  QUOTA UNLIMITED ON TS_OAUTH2;
+  -- Check/create OAuth user
+  SELECT COUNT(*) INTO v_user_count FROM dba_users WHERE username = 'OAUTHDBSCHEMA';
+  IF v_user_count = 0 THEN
+    EXECUTE IMMEDIATE 'CREATE USER OAUTHDBSCHEMA IDENTIFIED BY "Ora19Jazz!" DEFAULT TABLESPACE TS_OAUTH2 TEMPORARY TABLESPACE TEMP QUOTA UNLIMITED ON TS_OAUTH2';
+    DBMS_OUTPUT.PUT_LINE('Created user OAUTHDBSCHEMA');
+  ELSE
+    DBMS_OUTPUT.PUT_LINE('User OAUTHDBSCHEMA already exists — skipping');
+  END IF;
+END;
+/
 
 GRANT CONNECT, RESOURCE TO OAUTHDBSCHEMA;
 GRANT CREATE SESSION, CREATE TABLE, CREATE VIEW, CREATE SEQUENCE TO OAUTHDBSCHEMA;
 
--- Create OAuth tables
+-- Create OAuth tables (IF NOT EXISTS via checking user_tables)
+DECLARE
+  v_count NUMBER;
+BEGIN
+  SELECT COUNT(*) INTO v_count FROM all_tables WHERE owner = 'OAUTHDBSCHEMA' AND table_name = 'OAUTH20CACHE';
+  IF v_count > 0 THEN
+    DBMS_OUTPUT.PUT_LINE('OAuth tables already exist — skipping creation');
+    RETURN;
+  END IF;
+END;
+/
+
 CREATE TABLE OAUTHDBSCHEMA.OAUTH20CACHE (
   LOOKUPKEY VARCHAR2(256) NOT NULL,
   UNIQUEID VARCHAR2(128) NOT NULL,
