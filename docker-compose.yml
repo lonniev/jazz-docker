@@ -87,6 +87,7 @@ services:
           - "${ORACLE_FQDN}"
     volumes:
       - oracle-data:/opt/oracle/oradata
+      - ./oracle/tail_alert_log.sh:/opt/oracle/scripts/startup/00_tail_alert_log.sh
       - ./oracle/createschema.sh:/opt/oracle/scripts/startup/01_createschema.sh
     shm_size: "2g"
     deploy:
