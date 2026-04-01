@@ -60,11 +60,11 @@ services:
     image: ${ORACLE_IMAGE}
     container_name: jazz-oracle-container
     healthcheck:
-      test: ["CMD-SHELL", "echo 'SELECT 1 FROM DUAL;' | sqlplus -s / as sysdba | grep -q 1"]
+      test: ["CMD-SHELL", "echo 'SELECT COUNT(*) FROM dba_users WHERE username=''JTS'';' | sqlplus -s sys/${ORACLE_PWD}@localhost:1521/${ORACLE_PDB} as sysdba | grep -q 1"]
       interval: 30s
       timeout: 10s
-      retries: 30
-      start_period: 120s
+      retries: 60
+      start_period: 180s
     environment:
       ORACLE_SID: "ORCLCDB"
       ORACLE_PDB: "${ORACLE_PDB}"
