@@ -14,6 +14,7 @@ ARG ORACLE_PDB
 
 ARG LDAP_FQDN
 ARG LDAP_PORT
+ARG LDAP_BASE_DN
 ARG JAS_HTTP_PORT
 ARG JAS_HTTPS_PORT
 
@@ -101,6 +102,7 @@ RUN echo "CLM_FQDN=${CLM_FQDN}" >> /opt/jazz-medium/env
 RUN echo "CLM_PORT=${CLM_PORT}" >> /opt/jazz-medium/env
 RUN echo "LDAP_FQDN=${LDAP_FQDN}" >> /opt/jazz-medium/env
 RUN echo "LDAP_PORT=${LDAP_PORT}" >> /opt/jazz-medium/env
+RUN echo "LDAP_BASE_DN=${LDAP_BASE_DN}" >> /opt/jazz-medium/env
 RUN echo "JAS_HTTPS_PORT=${JAS_HTTPS_PORT}" >> /opt/jazz-medium/env
 RUN echo "JAS_HTTP_PORT=${JAS_HTTP_PORT}" >> /opt/jazz-medium/env
 

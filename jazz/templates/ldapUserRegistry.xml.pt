@@ -18,7 +18,7 @@
         ignoreCase="false"
         recursiveSearch="true" sslEnabled="false"
         host="@!ldapFqdn!@" port="@!ldapPort!@"
-        baseDN="dc=intercax,dc=com"
+        baseDN="@!ldapBaseDn!@"
         ldapType="Custom">
         <customFilters
             userFilter="(&amp;(uid=%v)(objectclass=posixAccount))"

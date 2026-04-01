@@ -22,7 +22,7 @@ services:
       - "--entrypoints.traefik-entry-jas_tls.address=:${JAS_HTTPS_PORT}"
       - "--certificatesresolvers.myresolver.acme.httpchallenge=true"
       - "--certificatesresolvers.myresolver.acme.httpchallenge.entrypoint=traefik-entry-http_open"
-      - "--certificatesresolvers.myresolver.acme.email=lonniev@gmail.com"
+      - "--certificatesresolvers.myresolver.acme.email=${ACME_EMAIL}"
       - "--certificatesresolvers.myresolver.acme.storage=/letsencrypt/acme.json"
       - "--serverstransport.insecureskipverify=true"
     networks:
@@ -51,7 +51,7 @@ services:
 
   jazz_oracle:
     labels:
-      com.intercax.intent: >-
+      com.jazz-docker.intent: >-
         This jazz_oracle container is the backend database storage for the Jazz CLM applications.
         A single Oracle 19c instance hosts a pluggable database (PDB) containing separate schemas
         for each of the 11 Jazz applications (JTS, CCM, QM, RM, LQE, LDX, DCC, GC, RELM, DM, DW)
@@ -98,7 +98,7 @@ services:
   jazz_clm:
     container_name: jazz-clm-container
     labels:
-      com.intercax.intent: >-
+      com.jazz-docker.intent: >-
         This jazz_clm service hosts the Jazz CLM applications GC, CCM, RM, QM, RELM, LQE, DM, etc.
         It uses the jazz_oracle service for its backend storage. It expects to be connected to the
         traefik service to expose its service to the outside network.
@@ -149,6 +149,7 @@ services:
         JAZZ_ADMIN_PASSWORD: ${JAZZ_ADMIN_PASSWORD}
         LDAP_FQDN: ${LDAP_FQDN}
         LDAP_PORT: ${LDAP_PORT}
+        LDAP_BASE_DN: ${LDAP_BASE_DN}
         JAS_HTTPS_PORT: ${JAS_HTTPS_PORT}
         JAS_HTTP_PORT: ${JAS_HTTP_PORT}
     expose:

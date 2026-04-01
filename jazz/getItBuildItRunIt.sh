@@ -43,6 +43,7 @@ clmPort=${CLM_PORT:-9443}
 clmScheme="https"
 ldapFqdn=${LDAP_FQDN:-localhost}
 ldapPort=${LDAP_PORT:-389}
+ldapBaseDn=${LDAP_BASE_DN:-dc=example,dc=com}
 jasHttpsPort=${JAS_HTTPS_PORT:-9643}
 jasHttpPort=${JAS_HTTP_PORT:-9280}
 
@@ -218,6 +219,7 @@ cat <<-JSON > "${replacements}"
         "oraclePassword": "${oraclePassword}",
         "ldapFqdn": "${ldapFqdn}",
         "ldapPort": "${ldapPort}",
+        "ldapBaseDn": "${ldapBaseDn}",
         "jasHttpsPort": "${jasHttpsPort}",
         "jasHttpPort": "${jasHttpPort}"
     }

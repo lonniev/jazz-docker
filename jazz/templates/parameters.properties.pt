@@ -181,8 +181,8 @@ rm\:data.warehouse.page\:db.type=JDBC
 rm\:data.warehouse.page\:db.vendor=ORACLE
 rm\:data.warehouse.page\:report.user=@!oracleUserName!@
 rs\:com.ibm.team.jrs.setupStep\:db.jdbc.password=@!oraclePassword!@
-user.registry.page\:ldap.baseGroupDN=ou\=Groups,dc\=intercax,dc\=com
-user.registry.page\:ldap.baseUserDN=ou\=Users,dc\=intercax,dc\=com
+user.registry.page\:ldap.baseGroupDN=ou\=Groups,@!ldapBaseDn!@
+user.registry.page\:ldap.baseUserDN=ou\=Users,@!ldapBaseDn!@
 user.registry.page\:ldap.groupMapping=JazzAdmins\=JazzAdmins, JazzUsers\=JazzUsers, JazzProjectAdmins\=JazzProjectAdmins, JazzGuests\=JazzGuests
 user.registry.page\:ldap.groupNameAttribute=cn
 user.registry.page\:ldap.membersOfGroup=uniqueMember
