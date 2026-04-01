@@ -261,21 +261,65 @@ sed -i.bak1 '/export HEALTHCENTER_OPTS="-agentlib:healthcenter -Dcom.ibm.java.di
     # replace line
 sed -i.bak2 's/export HEALTHCENTER_OPTS=.*/export HEALTHCENTER_OPTS=""/g' "${jtsPath}/server/server.startup"
 
-# in order to provision Jazz, it will need the Oracle database and the proper HTTPS proxy network in place
+# wait for Traefik to be reachable
 LC_ALL=C.UTF-8 wait-for-it \
-    --parallel \
-    --service "${oracleFqdn}:${oraclePort}" \
     --service traefik:8080 \
     --timeout 600 \
-    -- echo "${green}Oracle on ${oraclePort} and Traefik on 8080 are ready"
+    -- echo "${green}Traefik on 8080 is ready"
 
 if [[ $? -ne 0 ]]
 then
-
-    tput -T linux bold; echo "${red}Failed to reach peer services. Aborting"; tput -T linux sgr0
-
+    tput -T linux bold; echo "${red}Failed to reach Traefik. Aborting"; tput -T linux sgr0
     exit
+fi
 
+# Wait for Oracle Jazz schemas to be fully provisioned (not just port open).
+# Uses Jazz's own JRE + ojdbc8.jar to test a real JDBC connection to the JTS schema.
+tput -T linux bold; echo "${green}Waiting for Oracle Jazz schemas to be ready..."; tput -T linux sgr0
+
+cat > /tmp/OracleWait.java <<'JAVAEOF'
+import java.sql.*;
+public class OracleWait {
+    public static void main(String[] args) throws Exception {
+        String url = "jdbc:oracle:thin:@//" + args[0] + ":" + args[1] + "/" + args[2];
+        String user = args[3];
+        String pass = args[4];
+        Class.forName("oracle.jdbc.OracleDriver");
+        try (Connection c = DriverManager.getConnection(url, user, pass);
+             ResultSet r = c.createStatement().executeQuery("SELECT 1 FROM DUAL")) {
+            r.next();
+            System.out.println("OK");
+        }
+    }
+}
+JAVAEOF
+
+export JAVA_HOME="${jtsPath}/server/jre"
+"${JAVA_HOME}/bin/javac" /tmp/OracleWait.java -cp "${jtsPath}/server/oracle/ojdbc8.jar" -d /tmp
+
+maxRetries=60
+retryInterval=10
+
+for (( i=1; i<=maxRetries; i++ ))
+do
+    result=$("${JAVA_HOME}/bin/java" -cp "/tmp:${jtsPath}/server/oracle/ojdbc8.jar" \
+        -Doracle.jdbc.timezoneAsRegion=false \
+        OracleWait "${oracleFqdn}" "${oraclePort}" "${oraclePdb}" "${oracleUser}" "${oraclePassword}" 2>&1)
+
+    if [[ "${result}" == "OK" ]]
+    then
+        tput -T linux bold; echo "${green}Oracle on ${oraclePort} is ready — JDBC connection to ${oraclePdb} as ${oracleUser} succeeded."; tput -T linux sgr0
+        break
+    else
+        echo "  Attempt ${i}/${maxRetries}: Oracle not ready yet (${result}). Retrying in ${retryInterval}s..."
+        sleep ${retryInterval}
+    fi
+done
+
+if [[ $i -gt $maxRetries ]]
+then
+    tput -T linux bold; echo "${red}Oracle did not become ready in time. Aborting"; tput -T linux sgr0
+    exit 1
 fi
 
 # Jazz will try to save content in /tmp
