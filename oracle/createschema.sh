@@ -14,6 +14,11 @@ SYS_PWD="${ORACLE_PWD:-SysOracle19!}"
 
 echo "=== Jazz CLM: Creating Oracle schemas in PDB ${ORACLE_PDB} ==="
 
+# Datafiles must use absolute paths within the persistent oradata volume,
+# otherwise Oracle places them in dbs/ which is lost on container restart.
+DATAFILE_DIR="/opt/oracle/oradata/ORCLCDB/${ORACLE_PDB}"
+mkdir -p "${DATAFILE_DIR}"
+
 # Define Jazz databases and their default tablespace sizes (in MB)
 declare -A schemas
 schemas[JTS]=512
@@ -61,7 +66,7 @@ for schema in "${!schemas[@]}"; do
 
     -- Create a dedicated tablespace for this Jazz app
     CREATE TABLESPACE ${ts_name}
-      DATAFILE '${schema,,}_data.dbf'
+      DATAFILE '${DATAFILE_DIR}/${schema,,}_data.dbf'
       SIZE ${size}M
       AUTOEXTEND ON NEXT 64M MAXSIZE UNLIMITED
       EXTENT MANAGEMENT LOCAL AUTOALLOCATE
@@ -86,12 +91,12 @@ done
 # Create the OAuth2 database schema for Jazz Auth Server
 echo "Creating OAuth2 schema for Jazz Authentication Server..."
 
-sqlplus -s "sys/${SYS_PWD}@localhost:1521/${ORACLE_PDB} as sysdba" <<'EOSQL'
+sqlplus -s "sys/${SYS_PWD}@localhost:1521/${ORACLE_PDB} as sysdba" <<EOSQL
 WHENEVER SQLERROR CONTINUE
 
 -- Create tablespace for OAuth
 CREATE TABLESPACE TS_OAUTH2
-  DATAFILE 'oauth2_data.dbf'
+  DATAFILE '${DATAFILE_DIR}/oauth2_data.dbf'
   SIZE 256M
   AUTOEXTEND ON NEXT 64M MAXSIZE UNLIMITED
   EXTENT MANAGEMENT LOCAL AUTOALLOCATE
