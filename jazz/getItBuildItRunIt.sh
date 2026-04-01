@@ -129,31 +129,6 @@ su - "${jazzAdmin}" <<-SCRIPT
 
     fi
 
-    # Apply iFix if present
-    if [[ -f ${mediaPath}/ifix.zip ]]
-    then
-
-        tput -T linux bold; echo "${green}Applying ELM iFix..."; tput -T linux sgr0
-
-        ifixDir=/opt/jazz-ifix
-        mkdir -p \${ifixDir}
-        unzip -o -q ${mediaPath}/ifix.zip -d \${ifixDir}
-
-        ./userinstc -acceptLicense -input \${ifixDir} --launcher.ini user-silent-install.ini -installFixes recommended > /home/${jazzAdmin}/ifix-installation.log 2>&1
-
-        errorCount=\$(grep -i error ~/ifix-installation.log | wc -l)
-
-        if [[ \$errorCount -ne 0 ]]
-        then
-            tput -T linux bold; echo "${red}iFix installation had errors. Here are the last 50 lines:"; tput -T linux sgr0
-            tail -50 ~/ifix-installation.log
-            # Continue anyway — iFix failures are not always fatal
-        else
-            tput -T linux bold; echo "${green}iFix applied successfully."; tput -T linux sgr0
-        fi
-
-    fi
-
     exit 0
 
 SCRIPT
@@ -166,6 +141,51 @@ then
     tput -T linux bold; echo "${red}Failed to silently install Jazz. Aborting"; tput -T linux sgr0
 
     exit $status
+
+fi
+
+# Verify the base install actually produced output
+if [[ ! -d "/home/${jazzAdmin}/${jtsIbmJazzPath}" ]]
+then
+
+    tput -T linux bold; echo "${red}Base install did not produce /home/${jazzAdmin}/${jtsIbmJazzPath}. Dumping installation logs:"; tput -T linux sgr0
+    echo "=== installation.log (last 80 lines) ==="
+    tail -80 "/home/${jazzAdmin}/installation.log" 2>/dev/null
+    echo "=== jas-installation.log (last 80 lines) ==="
+    tail -80 "/home/${jazzAdmin}/jas-installation.log" 2>/dev/null
+
+    exit 66
+
+fi
+
+# Apply iFix if present (as root for filesystem access, then as jazz_admin for IM)
+if [[ -f ${mediaPath}/ifix.zip ]]
+then
+
+    tput -T linux bold; echo "${green}Applying ELM iFix..."; tput -T linux sgr0
+
+    ifixDir=/opt/jazz-ifix
+    mkdir -p ${ifixDir}
+    unzip -o -q ${mediaPath}/ifix.zip -d ${ifixDir}
+    chown -R "${jazzAdmin}":"${jazzAdmin}" ${ifixDir}
+
+    su - "${jazzAdmin}" <<-IFIX_SCRIPT
+
+        cd "${installerPath}"
+
+        ./userinstc -acceptLicense -input ${ifixDir} --launcher.ini user-silent-install.ini -installFixes recommended > /home/${jazzAdmin}/ifix-installation.log 2>&1
+
+        errorCount=\$(grep -i error ~/ifix-installation.log | wc -l)
+
+        if [[ \$errorCount -ne 0 ]]
+        then
+            tput -T linux bold; echo "${red}iFix installation had errors. Here are the last 50 lines:"; tput -T linux sgr0
+            tail -50 ~/ifix-installation.log
+        else
+            tput -T linux bold; echo "${green}iFix applied successfully."; tput -T linux sgr0
+        fi
+
+IFIX_SCRIPT
 
 fi
 
