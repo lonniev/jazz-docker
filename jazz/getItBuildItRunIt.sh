@@ -290,15 +290,33 @@ waitIntervals=(420 420 420 180 120 60 60 60 60)
 oracleReady=false
 elapsedTotal=0
 
-# Helper: test JDBC connection, sets oracleReady=true on success
+# Helper: test Oracle connection via Python + cx_Oracle-free TNS connect test.
+# Writes a tiny Java source, compiles once, then reuses the class for probes.
+testOracleSetup() {
+    cat > /tmp/OraProbe.java <<'JEOF'
+import java.sql.*;
+public class OraProbe {
+    public static void main(String[] args) {
+        try {
+            Connection c = DriverManager.getConnection(args[0], args[1], args[2]);
+            ResultSet r = c.createStatement().executeQuery("SELECT 1 FROM DUAL");
+            r.next();
+            System.out.println("OK");
+            c.close();
+        } catch (Exception e) {
+            System.out.println("FAIL: " + e.getMessage());
+        }
+    }
+}
+JEOF
+    "${JAVA_HOME}/bin/javac" -cp "${oraJdbcJar}" -d /tmp /tmp/OraProbe.java 2>&1
+}
+
 testOracle() {
     local result
-    result=$("${JAVA_HOME}/bin/jrunscript" -J-Djava.class.path="${oraJdbcJar}" -e "
-        java.lang.Class.forName('oracle.jdbc.OracleDriver');
-        var c = java.sql.DriverManager.getConnection('${oraJdbcUrl}', '${oracleUser}', '${oraclePassword}');
-        var r = c.createStatement().executeQuery('SELECT 1 FROM DUAL');
-        r.next(); print('OK'); c.close();
-    " 2>&1)
+    result=$("${JAVA_HOME}/bin/java" -cp "/tmp:${oraJdbcJar}" \
+        -Doracle.jdbc.timezoneAsRegion=false \
+        OraProbe "${oraJdbcUrl}" "${oracleUser}" "${oraclePassword}" 2>&1)
 
     if [[ "${result}" == *"OK"* ]]; then
         tput -T linux bold; echo "${green}Oracle is ready — JDBC connection to ${oraclePdb} as ${oracleUser} succeeded after ${elapsedTotal}s."; tput -T linux sgr0
@@ -309,6 +327,9 @@ testOracle() {
         return 1
     fi
 }
+
+# Compile the probe class once
+testOracleSetup
 
 # Test immediately — Oracle may already be ready
 testOracle && true
