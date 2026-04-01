@@ -67,8 +67,8 @@ chown -R "${jazzAdmin}":"${jazzAdmin}" "${unzippedClmPath}"
 unzip -o -q ${mediaPath}/jas.zip -d "${unzippedClmPath}"
 chown -R "${jazzAdmin}":"${jazzAdmin}" "${unzippedClmPath}"
 
-# unzip the CLM Web Installer
-unzip -o -q ${mediaPath}/installer.zip -d ${installerPath}
+# unzip the CLM Web Installer (zip already contains im/linux.gtk.x86_64/ structure)
+unzip -o -q ${mediaPath}/installer.zip -d ${webInstallerDir}
 
 # modify the XML config to point to the repo just composed from downloads
 timestamp=$(date)
