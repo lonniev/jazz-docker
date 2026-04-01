@@ -300,7 +300,20 @@ do
         tput -T linux bold; echo "${green}Oracle is ready — JDBC connection to ${oraclePdb} as ${oracleUser} succeeded."; tput -T linux sgr0
         break
     else
-        echo "  Attempt ${i}/${maxRetries}: Oracle not ready yet. Retrying in ${retryInterval}s..."
+        elapsed=$(( i * retryInterval ))
+        # Show what stage the connection failure is at
+        if python3 -c "
+import socket, sys
+try:
+    s = socket.create_connection(('${oracleFqdn}', ${oraclePort}), timeout=3)
+    s.close()
+except:
+    sys.exit(1)
+" 2>/dev/null; then
+            echo "  Attempt ${i}/${maxRetries} (${elapsed}s): Oracle port open but PDB/schemas not ready yet. Retrying in ${retryInterval}s..."
+        else
+            echo "  Attempt ${i}/${maxRetries} (${elapsed}s): Oracle not listening on port ${oraclePort} yet. Retrying in ${retryInterval}s..."
+        fi
         sleep ${retryInterval}
     fi
 done
