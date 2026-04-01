@@ -274,44 +274,31 @@ then
 fi
 
 # Wait for Oracle Jazz schemas to be fully provisioned (not just port open).
-# Uses Jazz's own JRE + ojdbc8.jar to test a real JDBC connection to the JTS schema.
+# Uses jrunscript (bundled with JRE) + ojdbc8.jar to test a real JDBC connection.
 tput -T linux bold; echo "${green}Waiting for Oracle Jazz schemas to be ready..."; tput -T linux sgr0
 
-cat > /tmp/OracleWait.java <<'JAVAEOF'
-import java.sql.*;
-public class OracleWait {
-    public static void main(String[] args) throws Exception {
-        String url = "jdbc:oracle:thin:@//" + args[0] + ":" + args[1] + "/" + args[2];
-        String user = args[3];
-        String pass = args[4];
-        Class.forName("oracle.jdbc.OracleDriver");
-        try (Connection c = DriverManager.getConnection(url, user, pass);
-             ResultSet r = c.createStatement().executeQuery("SELECT 1 FROM DUAL")) {
-            r.next();
-            System.out.println("OK");
-        }
-    }
-}
-JAVAEOF
-
 export JAVA_HOME="${jtsPath}/server/jre"
-"${JAVA_HOME}/bin/javac" /tmp/OracleWait.java -cp "${jtsPath}/server/oracle/ojdbc8.jar" -d /tmp
+oraJdbcJar="${jtsPath}/server/oracle/ojdbc8.jar"
+oraJdbcUrl="jdbc:oracle:thin:@//${oracleFqdn}:${oraclePort}/${oraclePdb}"
 
 maxRetries=60
 retryInterval=10
 
 for (( i=1; i<=maxRetries; i++ ))
 do
-    result=$("${JAVA_HOME}/bin/java" -cp "/tmp:${jtsPath}/server/oracle/ojdbc8.jar" \
-        -Doracle.jdbc.timezoneAsRegion=false \
-        OracleWait "${oracleFqdn}" "${oraclePort}" "${oraclePdb}" "${oracleUser}" "${oraclePassword}" 2>&1)
+    result=$("${JAVA_HOME}/bin/jrunscript" -cp "${oraJdbcJar}" -e "
+        java.lang.Class.forName('oracle.jdbc.OracleDriver');
+        var c = java.sql.DriverManager.getConnection('${oraJdbcUrl}', '${oracleUser}', '${oraclePassword}');
+        var r = c.createStatement().executeQuery('SELECT 1 FROM DUAL');
+        r.next(); print('OK'); c.close();
+    " 2>&1)
 
     if [[ "${result}" == "OK" ]]
     then
-        tput -T linux bold; echo "${green}Oracle on ${oraclePort} is ready — JDBC connection to ${oraclePdb} as ${oracleUser} succeeded."; tput -T linux sgr0
+        tput -T linux bold; echo "${green}Oracle is ready — JDBC connection to ${oraclePdb} as ${oracleUser} succeeded."; tput -T linux sgr0
         break
     else
-        echo "  Attempt ${i}/${maxRetries}: Oracle not ready yet (${result}). Retrying in ${retryInterval}s..."
+        echo "  Attempt ${i}/${maxRetries}: Oracle not ready yet. Retrying in ${retryInterval}s..."
         sleep ${retryInterval}
     fi
 done
