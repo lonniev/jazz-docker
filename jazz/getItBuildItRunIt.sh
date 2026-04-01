@@ -303,8 +303,21 @@ su - "${jazzAdmin}" <<-SCRIPT
         # it can take a long long time to get up and stabilize
         sleep 45
 
+        # tail the Liberty log in the background so there's visible progress
+        libertyLog="${jtsPath}/server/liberty/servers/clm/logs/console.log"
+        if [[ -f "\${libertyLog}" ]]; then
+            tail -f "\${libertyLog}" 2>/dev/null | while IFS= read -r line; do
+                echo "[Liberty] \${line}"
+            done &
+            tailPid=\$!
+        fi
+
         # repotools limits its JVM to 1.5G by default but will often fail in that case
+        echo "Starting repotools -setup (this typically takes 20-40 minutes)..."
         REPOTOOLS_MX_SIZE=8192 ./repotools-jts.sh -setup parametersFile=/home/${jazzAdmin}/parameters.properties adminUserId=ADMIN adminPassword=ADMIN
+
+        # stop the log tailer
+        [[ -n "\${tailPid}" ]] && kill "\${tailPid}" 2>/dev/null
 
         status=\$?
 
