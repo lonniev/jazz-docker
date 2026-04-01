@@ -38,8 +38,25 @@ This playbook walks through configuring and running the Docker Compose stack to 
 
 ### Accounts
 
-- **Oracle Container Registry** account (free) at [container-registry.oracle.com](https://container-registry.oracle.com)
-  - You must accept the license agreement for `database/enterprise` once via the web UI
+- **Oracle Account** (free) — required to pull the Oracle 19c Docker image
+  1. Go to [oracle.com/account](https://profile.oracle.com/myprofile/account/create-account.jspx) and create a free Oracle account (Oracle SSO) using your email address
+  2. Visit [container-registry.oracle.com](https://container-registry.oracle.com) and sign in with your new Oracle SSO credentials
+  3. Search for `database/enterprise` in the registry catalog
+  4. Click on the repository and review the **Oracle Standard Terms and Restrictions** license agreement
+  5. Click **Accept** — this is a one-time step; it unlocks `docker pull` access for the `database/enterprise` images
+  6. On your Docker host, authenticate:
+     ```bash
+     docker login container-registry.oracle.com
+     # Username: your Oracle SSO email
+     # Password: your Oracle SSO password
+     ```
+  7. Verify access:
+     ```bash
+     docker pull container-registry.oracle.com/database/enterprise:19.3.0.0
+     ```
+
+  > **Note:** If you receive "denied" or "unauthorized" errors, confirm you accepted the license agreement at container-registry.oracle.com for the specific image repository (`database/enterprise`). Simply having an Oracle account is not enough — the license must be explicitly accepted per repository.
+
 - **IBM Passport Advantage** account (licensed) to download ELM 7.0.3 media
 
 ### Network Ports
