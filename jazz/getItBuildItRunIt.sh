@@ -294,9 +294,10 @@ tput -T linux bold; echo "${green}Installing Oracle JDBC driver for Jazz Authent
 cp ${mediaPath}/ojdbc8.jar "${jasPath}/wlp/usr/shared/config/lib/global/"
 chown "${jazzAdmin}":"${jazzAdmin}" "${jasPath}/wlp/usr/shared/config/lib/global/ojdbc8.jar"
 
-mkdir -p "${jtsPath}/server/lib/oracle"
-cp ${mediaPath}/ojdbc8.jar "${jtsPath}/server/lib/oracle/"
-chown "${jazzAdmin}":"${jazzAdmin}" "${jtsPath}/server/lib/oracle/ojdbc8.jar"
+# Jazz expects the Oracle JDBC driver at exactly server/oracle/ojdbc8.jar
+mkdir -p "${jtsPath}/server/oracle"
+cp ${mediaPath}/ojdbc8.jar "${jtsPath}/server/oracle/"
+chown "${jazzAdmin}":"${jazzAdmin}" "${jtsPath}/server/oracle/ojdbc8.jar"
 
 su - "${jazzAdmin}" <<-SCRIPT
 
