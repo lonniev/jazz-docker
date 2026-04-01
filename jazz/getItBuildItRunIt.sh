@@ -290,8 +290,33 @@ waitIntervals=(420 420 420 180 120 60 60 60 60)
 oracleReady=false
 elapsedTotal=0
 
+# Helper: test JDBC connection, sets oracleReady=true on success
+testOracle() {
+    local result
+    result=$("${JAVA_HOME}/bin/jrunscript" -J-Djava.class.path="${oraJdbcJar}" -e "
+        java.lang.Class.forName('oracle.jdbc.OracleDriver');
+        var c = java.sql.DriverManager.getConnection('${oraJdbcUrl}', '${oracleUser}', '${oraclePassword}');
+        var r = c.createStatement().executeQuery('SELECT 1 FROM DUAL');
+        r.next(); print('OK'); c.close();
+    " 2>&1)
+
+    if [[ "${result}" == *"OK"* ]]; then
+        tput -T linux bold; echo "${green}Oracle is ready — JDBC connection to ${oraclePdb} as ${oracleUser} succeeded after ${elapsedTotal}s."; tput -T linux sgr0
+        oracleReady=true
+        return 0
+    else
+        echo "  JDBC probe: ${result}" | head -3
+        return 1
+    fi
+}
+
+# Test immediately — Oracle may already be ready
+testOracle && true
+
 for (( i=0; i<${#waitIntervals[@]}; i++ ))
 do
+    [[ "${oracleReady}" == "true" ]] && break
+
     interval=${waitIntervals[$i]}
     phase=$(( i + 1 ))
     minutes=$(( interval / 60 ))
@@ -314,22 +339,7 @@ except:
     sleep ${interval}
     elapsedTotal=$(( elapsedTotal + interval ))
 
-    # Test JDBC connection
-    result=$("${JAVA_HOME}/bin/jrunscript" -J-Djava.class.path="${oraJdbcJar}" -e "
-        java.lang.Class.forName('oracle.jdbc.OracleDriver');
-        var c = java.sql.DriverManager.getConnection('${oraJdbcUrl}', '${oracleUser}', '${oraclePassword}');
-        var r = c.createStatement().executeQuery('SELECT 1 FROM DUAL');
-        r.next(); print('OK'); c.close();
-    " 2>&1)
-
-    if [[ "${result}" == *"OK"* ]]
-    then
-        tput -T linux bold; echo "${green}Oracle is ready — JDBC connection to ${oraclePdb} as ${oracleUser} succeeded after ${elapsedTotal}s."; tput -T linux sgr0
-        oracleReady=true
-        break
-    else
-        echo "  JDBC test failed: ${result}"
-    fi
+    testOracle && true
 done
 
 if [[ "${oracleReady}" != "true" ]]
