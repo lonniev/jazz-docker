@@ -3,6 +3,28 @@
 red=$(tput -T linux setaf 1)
 green=$(tput -T linux setaf 2)
 
+# Known harmless log noise from IBM repotools (log4j OSGI classloading)
+cat > /tmp/jazz_log_filter <<'FILTER'
+OSGI services
+log4j
+NullPointerException
+OsgiServiceLocator
+ServiceLoaderUtil
+ProviderUtil
+LogManager.<clinit>
+LogAdapter
+LogFactoryImpl
+ExtensionRegistryReader
+BundleContextImpl
+EquinoxBundle
+ModuleContainer
+EquinoxContainerAdaptor
+EventManager
+	at org.
+	at com.ibm.team.jfs
+	at java.base
+FILTER
+
 # read environment passed along from the Docker Compose Build phase
 mediaPath=/opt/jazz-medium
 templatePath="${mediaPath}/templates"
@@ -426,7 +448,7 @@ su - "${jazzAdmin}" <<-SCRIPT
         for app in "\${apps[@]}"
         do
             echo "Preparing \${app} for migration to Jazz Authentication Server Single-Sign-On..."
-            ./repotools-\${app}.sh -prepareJsaSsoMigration adminUserId=ADMIN adminPassword=ADMIN repositoryURL=https://${clmFqdn}:${clmPort}/jts
+            ./repotools-\${app}.sh -prepareJsaSsoMigration adminUserId=ADMIN adminPassword=ADMIN repositoryURL=https://${clmFqdn}:${clmPort}/jts 2>&1 | grep -v -f /tmp/jazz_log_filter
         done
 
         status=\$?
@@ -497,7 +519,7 @@ su - "${jazzAdmin}" <<-SCRIPT
     for app in "\${apps[@]}"
     do
         echo "Preparing \${app} for migration to Jazz Authentication Server Single-Sign-On..."
-        ./repotools-\${app}.sh -migrateToJsaSso authServerUserId=${jazzAdmin} authServerPassword=${jazzAdminPassword} authServerURL=https://${clmFqdn}:${jasHttpsPort}/oidc/endpoint/jazzop
+        ./repotools-\${app}.sh -migrateToJsaSso authServerUserId=${jazzAdmin} authServerPassword=${jazzAdminPassword} authServerURL=https://${clmFqdn}:${jasHttpsPort}/oidc/endpoint/jazzop 2>&1 | grep -v -f /tmp/jazz_log_filter
     done
 
 SCRIPT
