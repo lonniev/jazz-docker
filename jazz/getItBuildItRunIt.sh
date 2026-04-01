@@ -173,7 +173,9 @@ then
 
         cd "${installerPath}"
 
-        ./userinstc -acceptLicense -installFixes recommended -repositories ${ifixDir} --launcher.ini user-silent-install.ini install > /home/${jazzAdmin}/ifix-installation.log 2>&1
+        # Use imcl (Installation Manager command line) to apply the iFix
+        # updateAll applies all available fixes from the repository
+        ./tools/imcl updateAll -acceptLicense -repositories ${ifixDir} -installFixes recommended -log /home/${jazzAdmin}/ifix-installation.log 2>&1
 
         errorCount=\$(grep -i error ~/ifix-installation.log | wc -l)
 
