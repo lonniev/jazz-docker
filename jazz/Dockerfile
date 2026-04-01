@@ -41,7 +41,7 @@ RUN service rsyslog start
 
 # get pyratemp so we can do some Template-file replacements ... easily
 # and wait-for-it to manage race conditions
-RUN python -m pip install pyratemp pyyaml wait-for-it
+RUN python -m pip install pyratemp pyyaml wait-for-it oracledb
 
 # Create user ID for Jazz Administration
 RUN useradd -U -G sudo -d /home/${JAZZ_USER} -m -s /bin/bash -p $(openssl passwd -1 "${JAZZ_ADMIN_PASSWORD}") ${JAZZ_USER}
