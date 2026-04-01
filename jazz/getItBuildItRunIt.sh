@@ -322,11 +322,13 @@ except:
         r.next(); print('OK'); c.close();
     " 2>&1)
 
-    if [[ "${result}" == "OK" ]]
+    if [[ "${result}" == *"OK"* ]]
     then
         tput -T linux bold; echo "${green}Oracle is ready — JDBC connection to ${oraclePdb} as ${oracleUser} succeeded after ${elapsedTotal}s."; tput -T linux sgr0
         oracleReady=true
         break
+    else
+        echo "  JDBC test failed: ${result}"
     fi
 done
 
