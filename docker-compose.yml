@@ -12,7 +12,7 @@ services:
       - TZ=America/New_York
     command:
       - "--accesslog.fields.names.StartUTC=drop"
-      - "--log.level=WARN"
+      - "--log.level=ERROR"
       - "--api.insecure=true"
       - "--providers.docker=true"
       - "--providers.docker.exposedbydefault=false"
