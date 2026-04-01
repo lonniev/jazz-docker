@@ -315,7 +315,7 @@ except:
     elapsedTotal=$(( elapsedTotal + interval ))
 
     # Test JDBC connection
-    result=$("${JAVA_HOME}/bin/jrunscript" -cp "${oraJdbcJar}" -e "
+    result=$("${JAVA_HOME}/bin/jrunscript" -J-Djava.class.path="${oraJdbcJar}" -e "
         java.lang.Class.forName('oracle.jdbc.OracleDriver');
         var c = java.sql.DriverManager.getConnection('${oraJdbcUrl}', '${oracleUser}', '${oraclePassword}');
         var r = c.createStatement().executeQuery('SELECT 1 FROM DUAL');
