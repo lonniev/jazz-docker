@@ -172,20 +172,32 @@ then
 
     su - "${jazzAdmin}" <<-IFIX_SCRIPT
 
-        cd "${installerPath}"
+        # Use the *installed* Installation Manager's imcl, not the web installer's userinstc
+        installedImcl="/home/${jazzAdmin}/IBM/InstallationManager/eclipse/tools/imcl"
 
-        # Use imcl (Installation Manager command line) to apply the iFix
-        # updateAll applies all available fixes from the repository
-        ./tools/imcl updateAll -acceptLicense -repositories ${ifixDir} -installFixes recommended -log /home/${jazzAdmin}/ifix-installation.log 2>&1
-
-        errorCount=\$(grep -i error ~/ifix-installation.log | wc -l)
-
-        if [[ \$errorCount -ne 0 ]]
+        if [[ ! -x "\${installedImcl}" ]]
         then
-            tput -T linux bold; echo "${red}iFix installation had errors. Here are the last 50 lines:"; tput -T linux sgr0
-            tail -50 ~/ifix-installation.log
+            tput -T linux bold; echo "${red}Installed imcl not found at \${installedImcl}. Skipping iFix."; tput -T linux sgr0
+            exit 0
+        fi
+
+        tput -T linux bold; echo "${green}Applying iFix via installed IM at \${installedImcl}..."; tput -T linux sgr0
+
+        \${installedImcl} updateAll -acceptLicense -repositories ${ifixDir} -installFixes recommended -log /home/${jazzAdmin}/ifix-installation.log 2>&1
+
+        if [[ -f ~/ifix-installation.log ]]
+        then
+            errorCount=\$(grep -ic "^ERROR" ~/ifix-installation.log)
+
+            if [[ \$errorCount -ne 0 ]]
+            then
+                tput -T linux bold; echo "${red}iFix installation had errors. Here are the last 50 lines:"; tput -T linux sgr0
+                tail -50 ~/ifix-installation.log
+            else
+                tput -T linux bold; echo "${green}iFix applied successfully."; tput -T linux sgr0
+            fi
         else
-            tput -T linux bold; echo "${green}iFix applied successfully."; tput -T linux sgr0
+            tput -T linux bold; echo "${green}iFix completed (no log file produced — likely no updates needed)."; tput -T linux sgr0
         fi
 
 IFIX_SCRIPT
