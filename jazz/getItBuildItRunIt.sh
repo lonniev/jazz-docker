@@ -283,11 +283,38 @@ export JAVA_HOME="${jtsPath}/server/jre"
 oraJdbcJar="${jtsPath}/server/oracle/ojdbc8.jar"
 oraJdbcUrl="jdbc:oracle:thin:@//${oracleFqdn}:${oraclePort}/${oraclePdb}"
 
-maxRetries=120
-retryInterval=15
+# Backoff schedule: wait intervals in seconds
+# 7m, 7m, 7m, 3m, 2m, 1m, 1m, 1m, 1m = ~30 minutes total
+waitIntervals=(420 420 420 180 120 60 60 60 60)
 
-for (( i=1; i<=maxRetries; i++ ))
+oracleReady=false
+elapsedTotal=0
+
+for (( i=0; i<${#waitIntervals[@]}; i++ ))
 do
+    interval=${waitIntervals[$i]}
+    phase=$(( i + 1 ))
+    minutes=$(( interval / 60 ))
+
+    # Describe what we're doing
+    if python3 -c "
+import socket, sys
+try:
+    s = socket.create_connection(('${oracleFqdn}', ${oraclePort}), timeout=3)
+    s.close()
+except:
+    sys.exit(1)
+" 2>/dev/null; then
+        portStatus="port open, waiting for PDB/schemas"
+    else
+        portStatus="port not yet open"
+    fi
+
+    echo "  Phase ${phase}/${#waitIntervals[@]}: ${portStatus}. Waiting ${minutes}m... (${elapsedTotal}s elapsed)"
+    sleep ${interval}
+    elapsedTotal=$(( elapsedTotal + interval ))
+
+    # Test JDBC connection
     result=$("${JAVA_HOME}/bin/jrunscript" -cp "${oraJdbcJar}" -e "
         java.lang.Class.forName('oracle.jdbc.OracleDriver');
         var c = java.sql.DriverManager.getConnection('${oraJdbcUrl}', '${oracleUser}', '${oraclePassword}');
@@ -297,30 +324,15 @@ do
 
     if [[ "${result}" == "OK" ]]
     then
-        tput -T linux bold; echo "${green}Oracle is ready — JDBC connection to ${oraclePdb} as ${oracleUser} succeeded."; tput -T linux sgr0
+        tput -T linux bold; echo "${green}Oracle is ready — JDBC connection to ${oraclePdb} as ${oracleUser} succeeded after ${elapsedTotal}s."; tput -T linux sgr0
+        oracleReady=true
         break
-    else
-        elapsed=$(( i * retryInterval ))
-        # Show what stage the connection failure is at
-        if python3 -c "
-import socket, sys
-try:
-    s = socket.create_connection(('${oracleFqdn}', ${oraclePort}), timeout=3)
-    s.close()
-except:
-    sys.exit(1)
-" 2>/dev/null; then
-            echo "  Attempt ${i}/${maxRetries} (${elapsed}s): Oracle port open but PDB/schemas not ready yet. Retrying in ${retryInterval}s..."
-        else
-            echo "  Attempt ${i}/${maxRetries} (${elapsed}s): Oracle not listening on port ${oraclePort} yet. Retrying in ${retryInterval}s..."
-        fi
-        sleep ${retryInterval}
     fi
 done
 
-if [[ $i -gt $maxRetries ]]
+if [[ "${oracleReady}" != "true" ]]
 then
-    tput -T linux bold; echo "${red}Oracle did not become ready in time. Aborting"; tput -T linux sgr0
+    tput -T linux bold; echo "${red}Oracle did not become ready after ${elapsedTotal}s. Aborting."; tput -T linux sgr0
     exit 1
 fi
 
