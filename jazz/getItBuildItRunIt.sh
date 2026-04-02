@@ -55,8 +55,8 @@ source "${mediaPath}/env"
 
 jazzAdmin=${JAZZ_USER:-jazz_admin}
 jazzAdminPassword=${JAZZ_ADMIN_PASSWORD:-jazz_admin}
-oracleUser=${ORACLE_USER:-jazz_dba}
-oraclePassword=${ORACLE_PASSWORD:-Ora19Jazz!}
+oracleUser=${ORACLE_USER:-JAZZ_DBA}
+oraclePassword=${ORACLE_PASSWORD:-OrangeJazz19runs}
 oracleFqdn=${ORACLE_FQDN:-database.local}
 oraclePort=${ORACLE_PORT:-1521}
 oraclePdb=${ORACLE_PDB:-JAZZPDB}
