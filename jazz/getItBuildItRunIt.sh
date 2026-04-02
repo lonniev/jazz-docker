@@ -300,6 +300,7 @@ fi
 # Wait for Oracle Jazz schemas to be fully provisioned (not just port open).
 # Uses jrunscript (bundled with JRE) + ojdbc8.jar to test a real JDBC connection.
 tput -T linux bold; echo "${green}Waiting for Oracle Jazz schemas to be ready..."; tput -T linux sgr0
+echo "  Oracle probe credentials — user: [${oracleUser}] password: [${oraclePassword}] dsn: [${oracleFqdn}:${oraclePort}/${oraclePdb}]"
 
 export JAVA_HOME="${jtsPath}/server/jre"
 oraJdbcJar="${jtsPath}/server/oracle/ojdbc8.jar"

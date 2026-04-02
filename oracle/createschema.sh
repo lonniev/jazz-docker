@@ -13,6 +13,7 @@ JAZZ_DBA_PWD="${ORACLE_PASSWORD:-OrangeJazz19runs}"
 SYS_PWD="${ORACLE_PWD:-SysOracle19!}"
 
 echo "=== Jazz CLM: Creating Oracle schemas in PDB ${ORACLE_PDB} ==="
+echo "=== Oracle DBA user: [${JAZZ_DBA}] password: [${JAZZ_DBA_PWD}] ==="
 
 # Datafiles must use absolute paths within the persistent oradata volume,
 # otherwise Oracle places them in dbs/ which is lost on container restart.
