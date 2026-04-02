@@ -48,6 +48,9 @@ GRANT CONNECT, RESOURCE, DBA TO ${JAZZ_DBA};
 GRANT CREATE SESSION TO ${JAZZ_DBA};
 GRANT UNLIMITED TABLESPACE TO ${JAZZ_DBA};
 
+-- Prevent account lockout from probe retries during startup
+ALTER PROFILE DEFAULT LIMIT FAILED_LOGIN_ATTEMPTS UNLIMITED;
+
 EOSQL
 
 # Create a schema (Oracle user) and tablespace for each Jazz application
