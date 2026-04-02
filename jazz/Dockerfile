@@ -87,6 +87,15 @@ ADD templates/ldapUserRegistry.xml.pt /opt/jazz-medium/templates
 # provide the systemd template to automate running of JTS after install
 ADD templates/systemd_jts.pt /opt/jazz-medium/templates
 
+# Validate that passwords are shell/SQL/JDBC-safe (no punctuation that breaks quoting)
+RUN for pw in "${JAZZ_ADMIN_PASSWORD}" "${ORACLE_PASSWORD}"; do \
+      if echo "${pw}" | grep -qP '[!@#$%^&*(){}\[\]|\\;:\x27"` <>?/~]'; then \
+        echo "ERROR: Password '${pw}' contains special characters that break shell/SQL/JDBC quoting." && \
+        echo "Use word-verb phrases with letters, numbers, dashes, and underscores only." && \
+        exit 1; \
+      fi; \
+    done
+
 # provide the jazz silent installation and tweak script (which will be called on entry)
 ADD getItBuildItRunIt.sh /opt/jazz-medium
 RUN chmod a+x /opt/jazz-medium/getItBuildItRunIt.sh
