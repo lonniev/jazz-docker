@@ -7,38 +7,39 @@ errors=0
 check_password() {
     local name="$1"
     local pw="$2"
+    local len=${#pw}
 
-    if [ ${#pw} -lt 8 ]; then
-        echo "FAIL: ${name} is shorter than 8 characters."
+    if [ ${len} -lt 8 ]; then
+        echo "FAIL: ${name} is ${len} chars (need 8+). Value: [${pw}]"
         errors=1
         return
     fi
 
     if echo "${pw}" | grep -qP '[!@#$%^&*(){}\[\]|\\;:'"'"'"` <>?/~\s]'; then
-        echo "FAIL: ${name} contains special characters or spaces."
+        echo "FAIL: ${name} contains special characters or spaces. Value: [${pw}]"
         errors=1
         return
     fi
 
     if ! echo "${pw}" | grep -qP '[A-Z]'; then
-        echo "FAIL: ${name} must contain at least 1 uppercase letter."
+        echo "FAIL: ${name} has no uppercase letter. Value: [${pw}]"
         errors=1
         return
     fi
 
     if ! echo "${pw}" | grep -qP '[a-z]'; then
-        echo "FAIL: ${name} must contain at least 1 lowercase letter."
+        echo "FAIL: ${name} has no lowercase letter. Value: [${pw}]"
         errors=1
         return
     fi
 
     if ! echo "${pw}" | grep -qP '[0-9]'; then
-        echo "FAIL: ${name} must contain at least 1 digit."
+        echo "FAIL: ${name} has no digit. Value: [${pw}]"
         errors=1
         return
     fi
 
-    echo "  OK: ${name}"
+    echo "  OK: ${name} (${len} chars) [${pw}]"
 }
 
 echo "Validating passwords..."

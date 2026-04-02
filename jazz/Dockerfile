@@ -27,6 +27,10 @@ ARG JAZZ_IFIX_URL
 ARG DM_DISTRO_URL
 ARG IBMWEBINSTALLER_DISTRO_URL
 
+# Validate passwords early — before any heavy downloads
+COPY validate-passwords.sh /tmp/
+RUN chmod +x /tmp/validate-passwords.sh && /tmp/validate-passwords.sh "${JAZZ_ADMIN_PASSWORD}" "${ORACLE_PASSWORD}"
+
 RUN dpkg --add-architecture i386 && apt-get update
 
 RUN apt-get -y install rpm binutils libaio1 libx32stdc++6 \
@@ -87,9 +91,6 @@ ADD templates/ldapUserRegistry.xml.pt /opt/jazz-medium/templates
 # provide the systemd template to automate running of JTS after install
 ADD templates/systemd_jts.pt /opt/jazz-medium/templates
 
-# Validate passwords meet Oracle 19c and shell/SQL/JDBC safety rules
-COPY validate-passwords.sh /tmp/
-RUN chmod +x /tmp/validate-passwords.sh && /tmp/validate-passwords.sh "${JAZZ_ADMIN_PASSWORD}" "${ORACLE_PASSWORD}" && rm /tmp/validate-passwords.sh
 
 # provide the jazz silent installation and tweak script (which will be called on entry)
 ADD getItBuildItRunIt.sh /opt/jazz-medium
