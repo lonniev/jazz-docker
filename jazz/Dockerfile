@@ -87,31 +87,9 @@ ADD templates/ldapUserRegistry.xml.pt /opt/jazz-medium/templates
 # provide the systemd template to automate running of JTS after install
 ADD templates/systemd_jts.pt /opt/jazz-medium/templates
 
-# Validate that all passwords meet Oracle and shell/SQL/JDBC safety rules:
-#   8+ chars, at least 1 uppercase, 1 lowercase, 1 digit, no special characters
-RUN for pw in "${JAZZ_ADMIN_PASSWORD}" "${ORACLE_PASSWORD}"; do \
-      if echo "${pw}" | grep -qP '[!@#$%^&*(){}\[\]|\\;:\x27"` <>?/~\s]'; then \
-        echo "ERROR: Password contains special characters or spaces." && \
-        echo "Use word-verb phrases like OrangeTiger42runs — letters, numbers, dashes, underscores only." && \
-        exit 1; \
-      fi; \
-      if [ ${#pw} -lt 8 ]; then \
-        echo "ERROR: Password is shorter than 8 characters." && \
-        exit 1; \
-      fi; \
-      if ! echo "${pw}" | grep -qP '[A-Z]'; then \
-        echo "ERROR: Password must contain at least 1 uppercase letter." && \
-        exit 1; \
-      fi; \
-      if ! echo "${pw}" | grep -qP '[a-z]'; then \
-        echo "ERROR: Password must contain at least 1 lowercase letter." && \
-        exit 1; \
-      fi; \
-      if ! echo "${pw}" | grep -qP '[0-9]'; then \
-        echo "ERROR: Password must contain at least 1 digit." && \
-        exit 1; \
-      fi; \
-    done
+# Validate passwords meet Oracle 19c and shell/SQL/JDBC safety rules
+COPY validate-passwords.sh /tmp/
+RUN chmod +x /tmp/validate-passwords.sh && /tmp/validate-passwords.sh "${JAZZ_ADMIN_PASSWORD}" "${ORACLE_PASSWORD}" && rm /tmp/validate-passwords.sh
 
 # provide the jazz silent installation and tweak script (which will be called on entry)
 ADD getItBuildItRunIt.sh /opt/jazz-medium
