@@ -533,7 +533,7 @@ su - "${jazzAdmin}" <<-SCRIPT
     cd "${jtsPath}/server"
     export JAVA_HOME="${jtsPath}/server/jre"
 
-    ./repotools-jts.sh -syncUsers adminUserId=ADMIN adminPassword=ADMIN 2>&1 | grep -v -f /tmp/jazz_log_filter
+    ./repotools-jts.sh -syncUsers adminUserId=${jazzAdmin} adminPassword=${jazzAdminPassword} 2>&1 | grep -v -f /tmp/jazz_log_filter
 
     status=\$?
     if [[ \$status -eq 0 ]]; then
