@@ -160,10 +160,10 @@ echo "=== Jazz CLM: Oracle schema initialization complete ==="
 # but we ensure the DW schema user has the right grants for reporting
 sqlplus -s "sys/${SYS_PWD}@localhost:1521/${ORACLE_PDB} as sysdba" <<EOSQL
 WHENEVER SQLERROR CONTINUE
-GRANT SELECT ANY TABLE TO DW;
-GRANT INSERT ANY TABLE TO DW;
-GRANT UPDATE ANY TABLE TO DW;
-GRANT DELETE ANY TABLE TO DW;
+GRANT SELECT ANY TABLE TO DW_JAZZ;
+GRANT INSERT ANY TABLE TO DW_JAZZ;
+GRANT UPDATE ANY TABLE TO DW_JAZZ;
+GRANT DELETE ANY TABLE TO DW_JAZZ;
 EOSQL
 
 echo "=== Jazz CLM: All Oracle schemas ready ==="

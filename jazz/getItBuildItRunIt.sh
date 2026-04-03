@@ -403,6 +403,11 @@ mkdir -p "${jtsPath}/server/oracle"
 cp ${mediaPath}/ojdbc8.jar "${jtsPath}/server/oracle/"
 chown "${jazzAdmin}":"${jazzAdmin}" "${jtsPath}/server/oracle/ojdbc8.jar"
 
+# repotools -setup validates db.base.folder exists locally before sending SQL to Oracle.
+# Create the directory here so the local check passes — the actual Oracle datafiles
+# live on the Oracle container, which already has this directory.
+mkdir -p "/opt/oracle/oradata/ORCLCDB/${oraclePdb}"
+
 su - "${jazzAdmin}" <<-SCRIPT
 
     cd "${jtsPath}/server"
@@ -510,6 +515,20 @@ su - "${jazzAdmin}" <<-SCRIPT
     sed -i.bak -e 's!/bin/sh!/bin/bash!g' start-jazz
 
     ./start-jazz
+
+    # start-jazz creates localUserRegistry.xml and a server.xml that includes it.
+    # We need JAS to use LDAP instead, so switch the include after start-jazz has
+    # generated the initial config, then restart JAS so it picks up LDAP.
+    jasServerXml="${jasPath}/wlp/usr/servers/jazzop/server.xml"
+    if grep -q 'localUserRegistry.xml' "\${jasServerXml}" 2>/dev/null; then
+        tput -T linux bold; echo "${green}Switching JAS from localUserRegistry to ldapUserRegistry..."; tput -T linux sgr0
+        sed -i.bak 's|localUserRegistry.xml|ldapUserRegistry.xml|g' "\${jasServerXml}"
+
+        # Restart JAS to pick up the LDAP configuration
+        ./stop-jazz 2>/dev/null || true
+        sleep 5
+        ./start-jazz
+    fi
 
     cd "${jtsPath}/server"
 
