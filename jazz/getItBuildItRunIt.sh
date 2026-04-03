@@ -452,6 +452,18 @@ su - "${jazzAdmin}" <<-SCRIPT
         # leave a door open for administration!
         ./repotools-jts.sh -createUser adminUserId=ADMIN adminPassword=ADMIN userid=${jazzAdmin} jazzGroup=JazzAdmins
 
+        # Fix relative full-text index paths to absolute — repotools setup creates
+        # per-app teamserver.properties with relative paths that cause CRJAZ8190I warnings
+        # and may fail when invoked from a different working directory.
+        serverDir="${jtsPath}/server"
+        for propFile in conf/ccm/teamserver.properties conf/rm/teamserver.properties \
+                        conf/gc/teamserver.properties conf/qm/teamserver.properties \
+                        conf/relm/teamserver.properties conf/dcc/teamserver.properties; do
+            if [[ -f "\${serverDir}/\${propFile}" ]]; then
+                sed -i "s|indexLocation=conf/|indexLocation=\${serverDir}/conf/|g" "\${serverDir}/\${propFile}"
+            fi
+        done
+
         # generate the JSA SSO Migration JSON file for each Jazz App
         declare -a apps=("jts" "ccm" "rm" "gc" "qm" "relm" "dcc")
 
