@@ -525,25 +525,6 @@ su - "${jazzAdmin}" <<-SCRIPT
 
 SCRIPT
 
-# Sync LDAP users/groups into Jazz's internal user database
-tput -T linux bold; echo "${green}Synchronizing LDAP users into Jazz Team Server..."; tput -T linux sgr0
-
-su - "${jazzAdmin}" <<-SCRIPT
-
-    cd "${jtsPath}/server"
-    export JAVA_HOME="${jtsPath}/server/jre"
-
-    ./repotools-jts.sh -syncUsers adminUserId=${jazzAdmin} adminPassword=${jazzAdminPassword} 2>&1 | grep -v -f /tmp/jazz_log_filter
-
-    status=\$?
-    if [[ \$status -eq 0 ]]; then
-        tput -T linux bold; echo "${green}LDAP user sync completed successfully."; tput -T linux sgr0
-    else
-        tput -T linux bold; echo "${red}LDAP user sync returned status \$status (non-fatal, nightly sync will retry)."; tput -T linux sgr0
-    fi
-
-SCRIPT
-
     # indicate successful setup and leave the until loop
     echo "${timestamp}" > "/home/${jazzAdmin}/jazzIsSetup"
 
@@ -567,6 +548,28 @@ su - "${jazzAdmin}" <<-SCRIPT
     export JAVA_HOME="${jtsPath}/server/jre"
 
     ./server.startup
+
+SCRIPT
+
+# Give Liberty time to fully start before running syncUsers
+sleep 30
+
+# Sync LDAP users into Jazz's internal user database (server must be running)
+tput -T linux bold; echo "${green}Synchronizing LDAP users into Jazz Team Server..."; tput -T linux sgr0
+
+su - "${jazzAdmin}" <<-SCRIPT
+
+    cd "${jtsPath}/server"
+    export JAVA_HOME="${jtsPath}/server/jre"
+
+    ./repotools-jts.sh -syncUsers adminUserId=${jazzAdmin} adminPassword=${jazzAdminPassword} 2>&1 | grep -v -f /tmp/jazz_log_filter
+
+    status=\$?
+    if [[ \$status -eq 0 ]]; then
+        tput -T linux bold; echo "${green}LDAP user sync completed successfully."; tput -T linux sgr0
+    else
+        tput -T linux bold; echo "${red}LDAP user sync returned status \$status (non-fatal, nightly sync will retry)."; tput -T linux sgr0
+    fi
 
 SCRIPT
 
