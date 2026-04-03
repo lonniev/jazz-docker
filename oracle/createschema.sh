@@ -21,18 +21,19 @@ DATAFILE_DIR="/opt/oracle/oradata/ORCLCDB/${ORACLE_PDB}"
 mkdir -p "${DATAFILE_DIR}"
 
 # Define Jazz databases and their default tablespace sizes (in MB)
+# Oracle user names use APP_JAZZ pattern for clarity
 declare -A schemas
-schemas[JTS]=512
-schemas[CCM]=512
-schemas[QM]=512
-schemas[RM]=512
-schemas[LQE]=1024
-schemas[LDX]=1024
-schemas[DCC]=512
-schemas[GC]=512
-schemas[RELM]=512
-schemas[DM]=512
-schemas[DW]=512
+schemas[JTS_JAZZ]=512
+schemas[CCM_JAZZ]=512
+schemas[QM_JAZZ]=512
+schemas[RM_JAZZ]=512
+schemas[LQE_JAZZ]=1024
+schemas[LDX_JAZZ]=1024
+schemas[DCC_JAZZ]=512
+schemas[GC_JAZZ]=512
+schemas[RELM_JAZZ]=512
+schemas[DM_JAZZ]=512
+schemas[DW_JAZZ]=512
 
 # Connect to the PDB as SYS and create the DBA user
 # Using direct SQL with WHENEVER SQLERROR CONTINUE for idempotency
