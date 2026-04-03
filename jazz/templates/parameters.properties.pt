@@ -1,5 +1,5 @@
-# Original Source: Wed Mar 17 16:31:01 UTC 2021 (suitable for CLM 7.0.2)
 # Adapted for Oracle 19c — each app uses its own Oracle schema user
+# db.base.folder points to the Oracle datafile directory on the Oracle server
 #@!timestamp!@
 
 admin.access\:ws.allow.admin.access=true
@@ -7,6 +7,7 @@ ccm\:configure.database.page\:db.jdbc.location=thin\:CCM_JAZZ/{password}@//@!ora
 ccm\:configure.database.page\:db.jdbc.password=@!oraclePassword!@
 ccm\:configure.database.page\:db.type=JDBC
 ccm\:configure.database.page\:db.vendor=ORACLE
+ccm\:data.warehouse.page\:db.base.folder=/opt/oracle/oradata/ORCLCDB/@!oraclePdb!@
 ccm\:data.warehouse.page\:db.jdbc.location=thin\:DW_JAZZ/{password}@//@!oracleServerFqdn!@\:@!oracleServerPort!@/@!oraclePdb!@
 ccm\:data.warehouse.page\:db.jdbc.password=@!oraclePassword!@
 ccm\:data.warehouse.page\:db.type=JDBC
@@ -14,6 +15,7 @@ ccm\:data.warehouse.page\:db.vendor=ORACLE
 ccm\:data.warehouse.page\:report.user=DW_JAZZ
 com.ibm.team.datawarehouse.datawarehouse.jobs.enabled=true
 com.ibm.team.datawarehouse.db.automatic.setup=true
+com.ibm.team.datawarehouse.db.base.folder=/opt/oracle/oradata/ORCLCDB/@!oraclePdb!@
 com.ibm.team.datawarehouse.db.jdbc.location=thin\:DW_JAZZ/{password}@//@!oracleServerFqdn!@\:@!oracleServerPort!@/@!oraclePdb!@
 com.ibm.team.datawarehouse.db.jdbc.password=@!oraclePassword!@
 com.ibm.team.datawarehouse.db.net.port=1527
@@ -40,6 +42,7 @@ create.user.page\:emailAddress=@!jtsUserEmail!@
 create.user.page\:name=@!jtsUserName!@
 create.user.page\:password=@!jtsUserPassword!@
 create.user.page\:userId=@!jtsUserId!@
+data.warehouse.page\:db.base.folder=/opt/oracle/oradata/ORCLCDB/@!oraclePdb!@
 data.warehouse.page\:db.jdbc.location=thin\:DW_JAZZ/{password}@//@!oracleServerFqdn!@\:@!oracleServerPort!@/@!oraclePdb!@
 data.warehouse.page\:db.jdbc.password=@!oraclePassword!@
 data.warehouse.page\:db.type=JDBC
@@ -49,7 +52,8 @@ dcc\:configure.database.page\:db.jdbc.location=thin\:DCC_JAZZ/{password}@//@!ora
 dcc\:configure.database.page\:db.jdbc.password=@!oraclePassword!@
 dcc\:configure.database.page\:db.type=JDBC
 dcc\:configure.database.page\:db.vendor=ORACLE
-dcc\:dcc\:data.warehouse.page\:db.jdbc.location=thin\:DW_JAZZ/{password}@//@!oracleServerFqdn!@\:@!oracleServerPort!@/@!oraclePdb!@
+dcc\:data.warehouse.page\:db.base.folder=/opt/oracle/oradata/ORCLCDB/@!oraclePdb!@
+dcc\:data.warehouse.page\:db.jdbc.location=thin\:DW_JAZZ/{password}@//@!oracleServerFqdn!@\:@!oracleServerPort!@/@!oraclePdb!@
 dcc\:data.warehouse.page\:db.jdbc.password=@!oraclePassword!@
 dcc\:data.warehouse.page\:db.type=JDBC
 dcc\:data.warehouse.page\:db.vendor=ORACLE
@@ -125,7 +129,8 @@ qm\:configure.database.page\:db.jdbc.location=thin\:QM_JAZZ/{password}@//@!oracl
 qm\:configure.database.page\:db.jdbc.password=@!oraclePassword!@
 qm\:configure.database.page\:db.type=JDBC
 qm\:configure.database.page\:db.vendor=ORACLE
-qm\:qm\:data.warehouse.page\:db.jdbc.location=thin\:DW_JAZZ/{password}@//@!oracleServerFqdn!@\:@!oracleServerPort!@/@!oraclePdb!@
+qm\:data.warehouse.page\:db.base.folder=/opt/oracle/oradata/ORCLCDB/@!oraclePdb!@
+qm\:data.warehouse.page\:db.jdbc.location=thin\:DW_JAZZ/{password}@//@!oracleServerFqdn!@\:@!oracleServerPort!@/@!oraclePdb!@
 qm\:data.warehouse.page\:db.jdbc.password=@!oraclePassword!@
 qm\:data.warehouse.page\:db.type=JDBC
 qm\:data.warehouse.page\:db.vendor=ORACLE
@@ -169,7 +174,8 @@ rm\:configure.database.page\:db.jdbc.location=thin\:RM_JAZZ/{password}@//@!oracl
 rm\:configure.database.page\:db.jdbc.password=@!oraclePassword!@
 rm\:configure.database.page\:db.type=JDBC
 rm\:configure.database.page\:db.vendor=ORACLE
-rm\:rm\:data.warehouse.page\:db.jdbc.location=thin\:DW_JAZZ/{password}@//@!oracleServerFqdn!@\:@!oracleServerPort!@/@!oraclePdb!@
+rm\:data.warehouse.page\:db.base.folder=/opt/oracle/oradata/ORCLCDB/@!oraclePdb!@
+rm\:data.warehouse.page\:db.jdbc.location=thin\:DW_JAZZ/{password}@//@!oracleServerFqdn!@\:@!oracleServerPort!@/@!oraclePdb!@
 rm\:data.warehouse.page\:db.jdbc.password=@!oraclePassword!@
 rm\:data.warehouse.page\:db.type=JDBC
 rm\:data.warehouse.page\:db.vendor=ORACLE
