@@ -187,7 +187,7 @@ user.registry.page\:ldap.groupMapping=JazzAdmins\=JazzAdmins, JazzUsers\=JazzUse
 user.registry.page\:ldap.groupNameAttribute=cn
 user.registry.page\:ldap.membersOfGroup=uniqueMember
 user.registry.page\:ldap.registryLocation=ldap\://@!ldapFqdn!@\:@!ldapPort!@
-user.registry.page\:ldap.registryPassword=
-user.registry.page\:ldap.registryUserName=
+user.registry.page\:ldap.registryPassword=@!ldapBindPassword!@
+user.registry.page\:ldap.registryUserName=@!ldapBindDn!@
 user.registry.page\:ldap.userAttributesMapping=userId\=uid,name\=cn,emailAddress\=mail
 user.registry.page\:user.registry.type=DETECT

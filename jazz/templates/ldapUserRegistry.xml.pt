@@ -19,6 +19,8 @@
         recursiveSearch="true" sslEnabled="false"
         host="@!ldapFqdn!@" port="@!ldapPort!@"
         baseDN="@!ldapBaseDn!@"
+        bindDN="@!ldapBindDn!@"
+        bindPassword="@!ldapBindPassword!@"
         ldapType="Custom">
         <customFilters
             userFilter="(&amp;(uid=%v)(objectclass=posixAccount))"

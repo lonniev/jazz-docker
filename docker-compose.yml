@@ -159,6 +159,8 @@ services:
         LDAP_FQDN: ${LDAP_FQDN}
         LDAP_PORT: ${LDAP_PORT}
         LDAP_BASE_DN: ${LDAP_BASE_DN}
+        LDAP_BIND_DN: ${LDAP_BIND_DN}
+        LDAP_BIND_PASSWORD: ${LDAP_BIND_PASSWORD}
         JAS_HTTPS_PORT: ${JAS_HTTPS_PORT}
         JAS_HTTP_PORT: ${JAS_HTTP_PORT}
     expose:

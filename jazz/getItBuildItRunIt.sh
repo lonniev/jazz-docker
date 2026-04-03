@@ -66,6 +66,8 @@ clmScheme="https"
 ldapFqdn=${LDAP_FQDN:-localhost}
 ldapPort=${LDAP_PORT:-389}
 ldapBaseDn=${LDAP_BASE_DN:-dc=example,dc=com}
+ldapBindDn=${LDAP_BIND_DN:-}
+ldapBindPassword=${LDAP_BIND_PASSWORD:-}
 jasHttpsPort=${JAS_HTTPS_PORT:-9643}
 jasHttpPort=${JAS_HTTP_PORT:-9280}
 
@@ -256,6 +258,8 @@ cat <<-JSON > "${replacements}"
         "ldapFqdn": "${ldapFqdn}",
         "ldapPort": "${ldapPort}",
         "ldapBaseDn": "${ldapBaseDn}",
+        "ldapBindDn": "${ldapBindDn}",
+        "ldapBindPassword": "${ldapBindPassword}",
         "jasHttpsPort": "${jasHttpsPort}",
         "jasHttpPort": "${jasHttpPort}"
     }
