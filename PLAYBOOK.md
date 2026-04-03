@@ -69,6 +69,32 @@ Open the following ports on your host firewall:
 | 9443/tcp | Jazz ELM web UI (HTTPS) |
 | 9643/tcp | Jazz Authentication Server (HTTPS) |
 
+### Network Connectivity to LDAP and Other Internal Services
+
+Docker containers route external traffic through the host's network stack. If your LDAP server, SMTP server, or other services are on a private network (VPN, Tailscale, WireGuard, etc.), the Docker **host** must have connectivity to those services — not the containers themselves.
+
+**If your LDAP server is behind a Tailscale network:**
+
+1. Install Tailscale on the Docker host:
+   ```bash
+   curl -fsSL https://tailscale.com/install.sh | sh
+   sudo tailscale up
+   ```
+
+2. Verify the host can reach the LDAP server:
+   ```bash
+   ldapsearch -x -H ldap://YOUR_LDAP_HOST:389 -b "dc=example,dc=com" -s base "(objectclass=*)"
+   ```
+
+3. Verify from inside a container:
+   ```bash
+   docker exec jazz-clm-container bash -c "echo | timeout 5 bash -c 'cat < /dev/tcp/YOUR_LDAP_HOST/389' && echo 'OK' || echo 'FAIL'"
+   ```
+
+If the host can reach LDAP but containers cannot, check that Docker's default bridge network allows external routing (it does by default, but custom iptables rules or firewall policies may block it).
+
+> **Common symptom:** JAS logs show `javax.naming.CommunicationException: activity.intercax.com:389 [connect timed out]` and all `CRJAZ2871E` errors during SSO migration. This means the JAS Liberty server inside the container cannot reach the LDAP server. Fix the host's network routing first.
+
 ---
 
 ## 2. Obtain IBM ELM Installation Media
