@@ -578,6 +578,12 @@ sed -i.bak1 's/<!--include location="conf\/ldapUserRegistry.xml"\/-->/<include l
 sed -i.bak2 's/<include location="conf\/basicUserRegistry.xml"\/>/<!--include location="conf\/basicUserRegistry.xml"\/-->/g' "${jtsPath}/server/liberty/servers/clm/server.xml"
 chown "${jazzAdmin}":"${jazzAdmin}" "${jtsPath}/server/liberty/servers/clm/server.xml"
 
+# Tell Jazz to use Liberty's federated user registry (which now includes LDAP)
+# for group membership lookups. Setup stored UNSUPPORTED because DETECT
+# couldn't find LDAP (Liberty had basicUserRegistry during setup). LIBERTY
+# delegates to Liberty's own registry — no need for Jazz-specific LDAP props.
+sed -i 's/com.ibm.team.repository.user.registry.type=.*/com.ibm.team.repository.user.registry.type=LIBERTY/' "${jtsPath}/server/conf/jts/teamserver.properties"
+
 su - "${jazzAdmin}" <<-SCRIPT
 
     cd "${jasPath}"

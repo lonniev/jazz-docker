@@ -203,4 +203,4 @@ user.registry.page\:ldap.registryLocation=ldap\://@!ldapFqdn!@\:@!ldapPort!@
 user.registry.page\:ldap.registryPassword=@!ldapBindPassword!@
 user.registry.page\:ldap.registryUserName=@!ldapBindDn!@
 user.registry.page\:ldap.userAttributesMapping=userId\=uid,name\=cn,emailAddress\=mail
-user.registry.page\:user.registry.type=LDAP
+user.registry.page\:user.registry.type=DETECT
