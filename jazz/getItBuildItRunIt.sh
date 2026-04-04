@@ -632,6 +632,13 @@ SCRIPT
 
 done
 
+# Setup used DETECT for user.registry.type (allows setup to proceed without
+# LDAP). Now that setup and SSO migration are complete, switch to LDAP so
+# Jazz queries LDAP for group membership. Without this, Jazz falls back to
+# UNSUPPORTED and no user can access the repository (CRJAZ1394E).
+tput -T linux bold; echo "${green}Switching Jazz user registry type from DETECT to LDAP..."; tput -T linux sgr0
+sed -i 's/com.ibm.team.repository.user.registry.type=.*/com.ibm.team.repository.user.registry.type=LDAP/' "${jtsPath}/server/conf/jts/teamserver.properties"
+
 su - "${jazzAdmin}" <<-SCRIPT
 
     cd "${jasPath}"
