@@ -305,6 +305,51 @@ then
     exit
 fi
 
+# Validate LDAP connectivity and bind credentials early — before the long
+# Oracle wait and Jazz setup. A bad bind DN or password will cause JAS SSO
+# migration to fail much later with a cryptic CRJAZ2871E.
+tput -T linux bold; echo "${green}Validating LDAP connectivity and bind credentials..."; tput -T linux sgr0
+echo "  LDAP server: ${ldapFqdn}:${ldapPort}"
+echo "  Bind DN: ${ldapBindDn}"
+echo "  Base DN: ${ldapBaseDn}"
+
+ldapResult=$(python3 -c "
+import subprocess, sys
+
+# Test 1: port reachability
+import socket
+try:
+    s = socket.create_connection(('${ldapFqdn}', ${ldapPort}), timeout=10)
+    s.close()
+except Exception as e:
+    print(f'FAIL_CONNECT: {e}')
+    sys.exit(1)
+
+# Test 2: authenticated bind + search
+r = subprocess.run(
+    ['ldapsearch', '-x', '-H', 'ldap://${ldapFqdn}:${ldapPort}',
+     '-D', '${ldapBindDn}', '-w', '${ldapBindPassword}',
+     '-b', '${ldapBaseDn}', '(uid=${jazzAdmin})', 'cn'],
+    capture_output=True, text=True, timeout=15)
+if r.returncode != 0:
+    print(f'FAIL_BIND: {r.stderr.strip()}')
+    sys.exit(2)
+if '${jazzAdmin}' not in r.stdout:
+    print(f'FAIL_SEARCH: user ${jazzAdmin} not found under ${ldapBaseDn}')
+    sys.exit(3)
+print('OK')
+" 2>&1)
+
+if [[ "${ldapResult}" == "OK" ]]; then
+    tput -T linux bold; echo "${green}LDAP bind and user lookup succeeded."; tput -T linux sgr0
+else
+    tput -T linux bold; echo "${red}LDAP validation failed: ${ldapResult}"; tput -T linux sgr0
+    echo "${red}Check LDAP_BIND_DN, LDAP_BIND_PASSWORD, and LDAP_BASE_DN in your .env file."
+    echo "The LDAP bind DN must match your directory (e.g. uid=jazz_admin,ou=Users,dc=intercax,dc=com)."
+    echo "Aborting to prevent a wasted 30+ minute setup that will fail at JAS SSO migration.${NC}"
+    exit 1
+fi
+
 # Wait for Oracle Jazz schemas to be fully provisioned (not just port open).
 # Uses jrunscript (bundled with JRE) + ojdbc8.jar to test a real JDBC connection.
 tput -T linux bold; echo "${green}Waiting for Oracle Jazz schemas to be ready..."; tput -T linux sgr0

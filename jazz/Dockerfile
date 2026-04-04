@@ -37,7 +37,7 @@ RUN dpkg --add-architecture i386 && apt-get update
 
 RUN apt-get -y install rpm binutils libaio1 libx32stdc++6 \
 libpam0g:i386 libnuma1 file vim rsyslog software-properties-common wget unzip openssl rsync sudo less openssh-server sshpass \
-python3 python3-pip
+python3 python3-pip ldap-utils
 
 RUN update-alternatives --install /usr/bin/python python /usr/bin/python3 1
 
