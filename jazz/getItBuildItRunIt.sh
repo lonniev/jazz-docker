@@ -457,6 +457,31 @@ chown "${jazzAdmin}":"${jazzAdmin}" "${jtsPath}/server/oracle/ojdbc8.jar"
 # live on the Oracle container, which already has this directory.
 mkdir -p "/opt/oracle/oradata/ORCLCDB/${oraclePdb}"
 
+# Enable LDAP in CLM Liberty BEFORE setup starts. When repotools -setup runs
+# with user.registry.type=DETECT, it checks Liberty's registry. If LDAP is
+# already configured in Liberty, DETECT stores all the correct internal Jazz
+# LDAP properties. If we wait until after setup, DETECT falls back to
+# UNSUPPORTED and stores nothing — breaking all group-based permissions.
+tput -T linux bold; echo "${green}Configuring CLM Liberty to use LDAP before setup..."; tput -T linux sgr0
+clmServerXml="${jtsPath}/server/liberty/servers/clm/server.xml"
+clmConfDir="${jtsPath}/server/liberty/servers/clm/conf"
+
+if [[ -f "${clmServerXml}" ]]; then
+    # Generate ldapUserRegistry.xml into CLM conf directory
+    mkdir -p "${clmConfDir}"
+    pyratemp_tool.py -f "${replacements}" "${templatePath}/ldapUserRegistry.xml.pt" > "${clmConfDir}/ldapUserRegistry.xml"
+    chown "${jazzAdmin}:${jazzAdmin}" "${clmConfDir}/ldapUserRegistry.xml"
+
+    # Enable LDAP and disable basic auth in server.xml
+    sed -i.bak1 's/<!--include location="conf\/ldapUserRegistry.xml"\/-->/<include location="conf\/ldapUserRegistry.xml"\/>/g' "${clmServerXml}"
+    sed -i.bak2 's/<include location="conf\/basicUserRegistry.xml"\/>/<!--include location="conf\/basicUserRegistry.xml"\/-->/g' "${clmServerXml}"
+    chown "${jazzAdmin}:${jazzAdmin}" "${clmServerXml}"
+
+    echo "  LDAP registry enabled in CLM Liberty server.xml"
+else
+    tput -T linux bold; echo "${red}CLM server.xml not found — LDAP will be configured after setup"; tput -T linux sgr0
+fi
+
 su - "${jazzAdmin}" <<-SCRIPT
 
     cd "${jtsPath}/server"
@@ -563,22 +588,13 @@ then
 
 fi
 
-# liberty/servers/clm/ files do not exist before the JTS setup, they are here now available
-
-# switch the server configuration to use the LDAP server and the JAS server
+# Configure JAS with LDAP (CLM Liberty was already configured before setup)
 pyratemp_tool.py -f "${replacements}" "${templatePath}/ldapUserRegistry.xml.pt" > "${jasPath}/wlp/usr/servers/jazzop/ldapUserRegistry.xml"
 chown "${jazzAdmin}":"${jazzAdmin}" "${jasPath}/wlp/usr/servers/jazzop/ldapUserRegistry.xml"
 
-# Save backup — start-jazz may overwrite files in the JAS config directory
+# Save backup — start-jazz will overwrite appConfig.xml and may clobber other files
 cp -f "${jasPath}/wlp/usr/servers/jazzop/ldapUserRegistry.xml" "/home/${jazzAdmin}/ldapUserRegistry.xml.jas"
 chown "${jazzAdmin}:${jazzAdmin}" "/home/${jazzAdmin}/ldapUserRegistry.xml.jas"
-
-# also enables SCIM in the JAS server
-cp -f "${jasPath}/wlp/usr/servers/jazzop/ldapUserRegistry.xml" "${jtsPath}/server/liberty/servers/clm/conf"
-
-sed -i.bak1 's/<!--include location="conf\/ldapUserRegistry.xml"\/-->/<include location="conf\/ldapUserRegistry.xml"\/>/g' "${jtsPath}/server/liberty/servers/clm/server.xml"
-sed -i.bak2 's/<include location="conf\/basicUserRegistry.xml"\/>/<!--include location="conf\/basicUserRegistry.xml"\/-->/g' "${jtsPath}/server/liberty/servers/clm/server.xml"
-chown "${jazzAdmin}":"${jazzAdmin}" "${jtsPath}/server/liberty/servers/clm/server.xml"
 
 su - "${jazzAdmin}" <<-SCRIPT
 
@@ -631,27 +647,6 @@ SCRIPT
     echo "${timestamp}" > "/home/${jazzAdmin}/jazzIsSetup"
 
 done
-
-# Setup used DETECT for user.registry.type (allows setup to proceed without
-# LDAP). DETECT falls back to UNSUPPORTED when LDAP isn't reachable during
-# setup, and stores NO LDAP connection details — just the type. We must
-# inject the full LDAP configuration into teamserver.properties before the
-# server goes live, otherwise no user can access the repository (CRJAZ1394E).
-tput -T linux bold; echo "${green}Configuring Jazz user registry for LDAP..."; tput -T linux sgr0
-jtsProps="${jtsPath}/server/conf/jts/teamserver.properties"
-sed -i 's/com.ibm.team.repository.user.registry.type=.*/com.ibm.team.repository.user.registry.type=LDAP/' "${jtsProps}"
-cat >> "${jtsProps}" <<LDAP_CONFIG
-com.ibm.team.repository.user.registry.ldap.registryLocation=ldap\://${ldapFqdn}\:${ldapPort}
-com.ibm.team.repository.user.registry.ldap.registryUserName=${ldapBindDn}
-com.ibm.team.repository.user.registry.ldap.registryPassword=${ldapBindPassword}
-com.ibm.team.repository.user.registry.ldap.baseUserDN=ou\=Users,${ldapBaseDn}
-com.ibm.team.repository.user.registry.ldap.baseGroupDN=ou\=Groups,${ldapBaseDn}
-com.ibm.team.repository.user.registry.ldap.groupMapping=JazzAdmins\=JazzAdmins,JazzUsers\=JazzUsers,JazzProjectAdmins\=JazzProjectAdmins,JazzGuests\=JazzGuests
-com.ibm.team.repository.user.registry.ldap.membersOfGroup=uniqueMember
-com.ibm.team.repository.user.registry.ldap.groupNameAttribute=cn
-com.ibm.team.repository.user.registry.ldap.userAttributesMapping=userId\=uid,name\=cn,emailAddress\=mail
-LDAP_CONFIG
-chown "${jazzAdmin}:${jazzAdmin}" "${jtsProps}"
 
 su - "${jazzAdmin}" <<-SCRIPT
 
