@@ -442,12 +442,23 @@ su - "${jazzAdmin}" <<-SCRIPT
         echo "Starting repotools -setup (this typically takes 20-40 minutes)..."
         REPOTOOLS_MX_SIZE=8192 ./repotools-jts.sh -setup parametersFile=/home/${jazzAdmin}/parameters.properties adminUserId=ADMIN adminPassword=ADMIN
 
+        setupStatus=\$?
+
         # stop the log tailer
         [[ -n "\${tailPid}" ]] && kill "\${tailPid}" 2>/dev/null
 
-        status=\$?
-
-        [[ \$status -eq 0 ]] || exit \$status
+        if [[ \$setupStatus -ne 0 ]]; then
+            tput -T linux bold; echo "${red}repotools -setup failed (exit \${setupStatus}). Dumping setup log:"; tput -T linux sgr0
+            setupLog="${jtsPath}/server/repotools-jts_setup.log"
+            if [[ -f "\${setupLog}" ]]; then
+                echo "===== BEGIN \${setupLog} ====="
+                cat "\${setupLog}"
+                echo "===== END \${setupLog} ====="
+            else
+                echo "Setup log not found at \${setupLog}"
+            fi
+            exit \$setupStatus
+        fi
 
         # leave a door open for administration!
         ./repotools-jts.sh -createUser adminUserId=ADMIN adminPassword=ADMIN userid=${jazzAdmin} jazzGroup=JazzAdmins
