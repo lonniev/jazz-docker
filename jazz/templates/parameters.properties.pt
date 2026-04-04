@@ -123,6 +123,7 @@ lqe\:data.sources.page\:register.data.source.ccm.oslc.workitems.trs2=false
 lqe\:data.sources.page\:register.data.source.ccm.process-trs2=false
 lqe\:data.sources.page\:register.data.source.ccm.rtcoslc.scm.cslink.trs=false
 lqe\:data.sources.page\:register.data.source.ccm.rtcoslc.scm.reportable.trs.cs=false
+lqe\:data.sources.page\:register.data.source.ccm.rtcoslc.trs.scm.config=false
 lqe\:data.sources.page\:register.data.source.gc.process-trs2=false
 lqe\:data.sources.page\:register.data.source.gc.trs=false
 lqe\:data.sources.page\:register.data.source.jts.trsUsers=false
