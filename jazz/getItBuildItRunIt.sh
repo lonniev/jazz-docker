@@ -68,6 +68,8 @@ ldapPort=${LDAP_PORT:-389}
 ldapBaseDn=${LDAP_BASE_DN:-dc=example,dc=com}
 ldapBindDn=${LDAP_BIND_DN:-}
 ldapBindPassword=${LDAP_BIND_PASSWORD:-}
+jasAdminUser=${JAS_ADMIN_USER:-ADMIN}
+jasAdminPassword=${JAS_ADMIN_PASSWORD:-ADMIN}
 jasHttpsPort=${JAS_HTTPS_PORT:-9643}
 jasHttpPort=${JAS_HTTP_PORT:-9280}
 
@@ -620,11 +622,9 @@ su - "${jazzAdmin}" <<-SCRIPT
     for app in "\${apps[@]}"
     do
         echo "Preparing \${app} for migration to Jazz Authentication Server Single-Sign-On..."
-        # Use ADMIN for JAS auth — jazz_admin's LDAP group membership DN
-        # (ou=Service_Accounts) doesn't match its user DN (ou=Users), so JAS
-        # can't resolve its group permissions. ADMIN is in JazzAdmins with
-        # a matching ou=Users DN.
-        ./repotools-\${app}.sh -migrateToJsaSso authServerUserId=ADMIN authServerPassword=ADMIN authServerURL=https://${clmFqdn}:${jasHttpsPort}/oidc/endpoint/jazzop 2>&1 | grep -v -f /tmp/jazz_log_filter
+        # JAS_ADMIN_USER must be in JazzAdmins with a uniqueMember DN matching
+        # its actual LDAP user entry DN (same OU). Defaults to ADMIN.
+        ./repotools-\${app}.sh -migrateToJsaSso authServerUserId=${jasAdminUser} authServerPassword=${jasAdminPassword} authServerURL=https://${clmFqdn}:${jasHttpsPort}/oidc/endpoint/jazzop 2>&1 | grep -v -f /tmp/jazz_log_filter
     done
 
 SCRIPT
@@ -666,8 +666,7 @@ su - "${jazzAdmin}" <<-SCRIPT
     cd "${jtsPath}/server"
     export JAVA_HOME="${jtsPath}/server/jre"
 
-    # Use ADMIN for syncUsers — same DN mismatch issue as migrateToJsaSso
-    ./repotools-jts.sh -syncUsers adminUserId=ADMIN adminPassword=ADMIN repositoryURL=https://${clmFqdn}:${clmPort}/jts 2>&1 | grep -v -f /tmp/jazz_log_filter
+    ./repotools-jts.sh -syncUsers adminUserId=${jasAdminUser} adminPassword=${jasAdminPassword} repositoryURL=https://${clmFqdn}:${clmPort}/jts 2>&1 | grep -v -f /tmp/jazz_log_filter
 
     status=\$?
     if [[ \$status -eq 0 ]]; then
