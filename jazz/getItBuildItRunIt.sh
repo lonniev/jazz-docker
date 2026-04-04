@@ -457,30 +457,11 @@ chown "${jazzAdmin}":"${jazzAdmin}" "${jtsPath}/server/oracle/ojdbc8.jar"
 # live on the Oracle container, which already has this directory.
 mkdir -p "/opt/oracle/oradata/ORCLCDB/${oraclePdb}"
 
-# Enable LDAP in CLM Liberty BEFORE setup starts. When repotools -setup runs
-# with user.registry.type=DETECT, it checks Liberty's registry. If LDAP is
-# already configured in Liberty, DETECT stores all the correct internal Jazz
-# LDAP properties. If we wait until after setup, DETECT falls back to
-# UNSUPPORTED and stores nothing — breaking all group-based permissions.
-tput -T linux bold; echo "${green}Configuring CLM Liberty to use LDAP before setup..."; tput -T linux sgr0
-clmServerXml="${jtsPath}/server/liberty/servers/clm/server.xml"
-clmConfDir="${jtsPath}/server/liberty/servers/clm/conf"
-
-if [[ -f "${clmServerXml}" ]]; then
-    # Generate ldapUserRegistry.xml into CLM conf directory
-    mkdir -p "${clmConfDir}"
-    pyratemp_tool.py -f "${replacements}" "${templatePath}/ldapUserRegistry.xml.pt" > "${clmConfDir}/ldapUserRegistry.xml"
-    chown "${jazzAdmin}:${jazzAdmin}" "${clmConfDir}/ldapUserRegistry.xml"
-
-    # Enable LDAP and disable basic auth in server.xml
-    sed -i.bak1 's/<!--include location="conf\/ldapUserRegistry.xml"\/-->/<include location="conf\/ldapUserRegistry.xml"\/>/g' "${clmServerXml}"
-    sed -i.bak2 's/<include location="conf\/basicUserRegistry.xml"\/>/<!--include location="conf\/basicUserRegistry.xml"\/-->/g' "${clmServerXml}"
-    chown "${jazzAdmin}:${jazzAdmin}" "${clmServerXml}"
-
-    echo "  LDAP registry enabled in CLM Liberty server.xml"
-else
-    tput -T linux bold; echo "${red}CLM server.xml not found — LDAP will be configured after setup"; tput -T linux sgr0
-fi
+# Pre-generate ldapUserRegistry.xml for use after server.startup creates the
+# Liberty config. This file will be copied into CLM conf/ inside the su block,
+# after server.startup but before repotools -setup.
+pyratemp_tool.py -f "${replacements}" "${templatePath}/ldapUserRegistry.xml.pt" > "/home/${jazzAdmin}/ldapUserRegistry.xml.pre"
+chown "${jazzAdmin}:${jazzAdmin}" "/home/${jazzAdmin}/ldapUserRegistry.xml.pre"
 
 su - "${jazzAdmin}" <<-SCRIPT
 
@@ -499,6 +480,19 @@ su - "${jazzAdmin}" <<-SCRIPT
 
     if [[ \$status -eq 0 ]]
     then
+
+        # Now that server.startup has created the Liberty config, enable LDAP
+        # before repotools -setup runs. DETECT will find LDAP in Liberty and
+        # store all correct internal Jazz LDAP properties.
+        clmConf="${jtsPath}/server/liberty/servers/clm/conf"
+        clmXml="${jtsPath}/server/liberty/servers/clm/server.xml"
+        if [[ -f "\${clmXml}" ]]; then
+            mkdir -p "\${clmConf}"
+            cp -f /home/${jazzAdmin}/ldapUserRegistry.xml.pre "\${clmConf}/ldapUserRegistry.xml"
+            sed -i 's/<!--include location="conf\/ldapUserRegistry.xml"\/-->/<include location="conf\/ldapUserRegistry.xml"\/>/' "\${clmXml}"
+            sed -i 's/<include location="conf\/basicUserRegistry.xml"\/>/<!--include location="conf\/basicUserRegistry.xml"\/>/' "\${clmXml}"
+            echo "LDAP registry enabled in CLM Liberty (before setup)"
+        fi
 
         # it can take a long long time to get up and stabilize
         sleep 45
