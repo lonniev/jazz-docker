@@ -457,12 +457,6 @@ chown "${jazzAdmin}":"${jazzAdmin}" "${jtsPath}/server/oracle/ojdbc8.jar"
 # live on the Oracle container, which already has this directory.
 mkdir -p "/opt/oracle/oradata/ORCLCDB/${oraclePdb}"
 
-# Pre-generate ldapUserRegistry.xml for use after server.startup creates the
-# Liberty config. This file will be copied into CLM conf/ inside the su block,
-# after server.startup but before repotools -setup.
-pyratemp_tool.py -f "${replacements}" "${templatePath}/ldapUserRegistry.xml.pt" > "/home/${jazzAdmin}/ldapUserRegistry.xml.pre"
-chown "${jazzAdmin}:${jazzAdmin}" "/home/${jazzAdmin}/ldapUserRegistry.xml.pre"
-
 su - "${jazzAdmin}" <<-SCRIPT
 
     cd "${jtsPath}/server"
@@ -480,19 +474,6 @@ su - "${jazzAdmin}" <<-SCRIPT
 
     if [[ \$status -eq 0 ]]
     then
-
-        # Now that server.startup has created the Liberty config, enable LDAP
-        # before repotools -setup runs. DETECT will find LDAP in Liberty and
-        # store all correct internal Jazz LDAP properties.
-        clmConf="${jtsPath}/server/liberty/servers/clm/conf"
-        clmXml="${jtsPath}/server/liberty/servers/clm/server.xml"
-        if [[ -f "\${clmXml}" ]]; then
-            mkdir -p "\${clmConf}"
-            cp -f /home/${jazzAdmin}/ldapUserRegistry.xml.pre "\${clmConf}/ldapUserRegistry.xml"
-            sed -i 's/<!--include location="conf\/ldapUserRegistry.xml"\/-->/<include location="conf\/ldapUserRegistry.xml"\/>/' "\${clmXml}"
-            sed -i 's/<include location="conf\/basicUserRegistry.xml"\/>/<!--include location="conf\/basicUserRegistry.xml"\/>/' "\${clmXml}"
-            echo "LDAP registry enabled in CLM Liberty (before setup)"
-        fi
 
         # it can take a long long time to get up and stabilize
         sleep 45
@@ -582,13 +563,20 @@ then
 
 fi
 
-# Configure JAS with LDAP (CLM Liberty was already configured before setup)
+# Now that setup is complete, switch CLM Liberty from basicUserRegistry to LDAP
+# and configure JAS with LDAP
 pyratemp_tool.py -f "${replacements}" "${templatePath}/ldapUserRegistry.xml.pt" > "${jasPath}/wlp/usr/servers/jazzop/ldapUserRegistry.xml"
 chown "${jazzAdmin}":"${jazzAdmin}" "${jasPath}/wlp/usr/servers/jazzop/ldapUserRegistry.xml"
 
 # Save backup — start-jazz will overwrite appConfig.xml and may clobber other files
 cp -f "${jasPath}/wlp/usr/servers/jazzop/ldapUserRegistry.xml" "/home/${jazzAdmin}/ldapUserRegistry.xml.jas"
 chown "${jazzAdmin}:${jazzAdmin}" "/home/${jazzAdmin}/ldapUserRegistry.xml.jas"
+
+# Switch CLM Liberty to LDAP (setup needed basicUserRegistry to create admin user)
+cp -f "${jasPath}/wlp/usr/servers/jazzop/ldapUserRegistry.xml" "${jtsPath}/server/liberty/servers/clm/conf"
+sed -i.bak1 's/<!--include location="conf\/ldapUserRegistry.xml"\/-->/<include location="conf\/ldapUserRegistry.xml"\/>/g' "${jtsPath}/server/liberty/servers/clm/server.xml"
+sed -i.bak2 's/<include location="conf\/basicUserRegistry.xml"\/>/<!--include location="conf\/basicUserRegistry.xml"\/-->/g' "${jtsPath}/server/liberty/servers/clm/server.xml"
+chown "${jazzAdmin}":"${jazzAdmin}" "${jtsPath}/server/liberty/servers/clm/server.xml"
 
 su - "${jazzAdmin}" <<-SCRIPT
 
