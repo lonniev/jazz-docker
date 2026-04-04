@@ -345,7 +345,7 @@ if [[ "${ldapResult}" == "OK" ]]; then
 else
     tput -T linux bold; echo "${red}LDAP validation failed: ${ldapResult}"; tput -T linux sgr0
     echo "${red}Check LDAP_BIND_DN, LDAP_BIND_PASSWORD, and LDAP_BASE_DN in your .env file."
-    echo "The LDAP bind DN must match your directory (e.g. uid=jazz_admin,ou=Users,dc=intercax,dc=com)."
+    echo "The LDAP bind DN must match your directory (e.g. uid=jazz_admin,ou=Users,dc=example,dc=com)."
     echo "Aborting to prevent a wasted 30+ minute setup that will fail at JAS SSO migration.${NC}"
     exit 1
 fi
