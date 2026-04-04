@@ -273,6 +273,10 @@ chown "${jazzAdmin}":"${jazzAdmin}" "/home/${jazzAdmin}/parameters.properties"
 pyratemp_tool.py -f "${replacements}" "${templatePath}/appConfig.xml.pt" > "${jasPath}/wlp/usr/servers/jazzop/appConfig.xml"
 chown "${jazzAdmin}:${jazzAdmin}" "${jasPath}/wlp/usr/servers/jazzop/appConfig.xml"
 
+# Save backup copies — start-jazz will overwrite appConfig.xml with defaults
+cp -f "${jasPath}/wlp/usr/servers/jazzop/appConfig.xml" "/home/${jazzAdmin}/appConfig.xml.jas"
+chown "${jazzAdmin}:${jazzAdmin}" "/home/${jazzAdmin}/appConfig.xml.jas"
+
 # disable IBM's HealthCenterMonitor that uses RMI due to NAT/localhost issues
 if [[ ! -f ${jtsPath}/server/server.startup ]]
 then
@@ -520,6 +524,10 @@ fi
 pyratemp_tool.py -f "${replacements}" "${templatePath}/ldapUserRegistry.xml.pt" > "${jasPath}/wlp/usr/servers/jazzop/ldapUserRegistry.xml"
 chown "${jazzAdmin}":"${jazzAdmin}" "${jasPath}/wlp/usr/servers/jazzop/ldapUserRegistry.xml"
 
+# Save backup — start-jazz may overwrite files in the JAS config directory
+cp -f "${jasPath}/wlp/usr/servers/jazzop/ldapUserRegistry.xml" "/home/${jazzAdmin}/ldapUserRegistry.xml.jas"
+chown "${jazzAdmin}:${jazzAdmin}" "/home/${jazzAdmin}/ldapUserRegistry.xml.jas"
+
 # also enables SCIM in the JAS server
 cp -f "${jasPath}/wlp/usr/servers/jazzop/ldapUserRegistry.xml" "${jtsPath}/server/liberty/servers/clm/conf"
 
@@ -539,19 +547,20 @@ su - "${jazzAdmin}" <<-SCRIPT
 
     ./start-jazz
 
-    # start-jazz creates localUserRegistry.xml and a server.xml that includes it.
-    # We need JAS to use LDAP instead, so switch the include after start-jazz has
-    # generated the initial config, then restart JAS so it picks up LDAP.
-    jasServerXml="${jasPath}/wlp/usr/servers/jazzop/server.xml"
-    if grep -q 'localUserRegistry.xml' "\${jasServerXml}" 2>/dev/null; then
-        tput -T linux bold; echo "${green}Switching JAS from localUserRegistry to ldapUserRegistry..."; tput -T linux sgr0
-        sed -i.bak 's|localUserRegistry.xml|ldapUserRegistry.xml|g' "\${jasServerXml}"
+    # start-jazz overwrites appConfig.xml with a default that includes
+    # localUserRegistry.xml. Re-apply our custom appConfig.xml (which uses
+    # ldapUserRegistry.xml and Oracle) and our ldapUserRegistry.xml, then
+    # restart JAS so it picks up the LDAP + Oracle configuration.
+    jasConfigDir="${jasPath}/wlp/usr/servers/jazzop"
 
-        # Restart JAS to pick up the LDAP configuration
-        ./stop-jazz 2>/dev/null || true
-        sleep 5
-        ./start-jazz
-    fi
+    tput -T linux bold; echo "${green}Re-applying custom JAS config (LDAP + Oracle) after start-jazz overwrote defaults..."; tput -T linux sgr0
+    cp -f /home/${jazzAdmin}/appConfig.xml.jas "\${jasConfigDir}/appConfig.xml"
+    cp -f /home/${jazzAdmin}/ldapUserRegistry.xml.jas "\${jasConfigDir}/ldapUserRegistry.xml"
+
+    # Restart JAS to pick up the LDAP configuration
+    ./stop-jazz 2>/dev/null || true
+    sleep 5
+    ./start-jazz
 
     cd "${jtsPath}/server"
 
