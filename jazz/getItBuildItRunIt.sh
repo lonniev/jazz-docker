@@ -633,11 +633,25 @@ SCRIPT
 done
 
 # Setup used DETECT for user.registry.type (allows setup to proceed without
-# LDAP). Now that setup and SSO migration are complete, switch to LDAP so
-# Jazz queries LDAP for group membership. Without this, Jazz falls back to
-# UNSUPPORTED and no user can access the repository (CRJAZ1394E).
-tput -T linux bold; echo "${green}Switching Jazz user registry type from DETECT to LDAP..."; tput -T linux sgr0
-sed -i 's/com.ibm.team.repository.user.registry.type=.*/com.ibm.team.repository.user.registry.type=LDAP/' "${jtsPath}/server/conf/jts/teamserver.properties"
+# LDAP). DETECT falls back to UNSUPPORTED when LDAP isn't reachable during
+# setup, and stores NO LDAP connection details — just the type. We must
+# inject the full LDAP configuration into teamserver.properties before the
+# server goes live, otherwise no user can access the repository (CRJAZ1394E).
+tput -T linux bold; echo "${green}Configuring Jazz user registry for LDAP..."; tput -T linux sgr0
+jtsProps="${jtsPath}/server/conf/jts/teamserver.properties"
+sed -i 's/com.ibm.team.repository.user.registry.type=.*/com.ibm.team.repository.user.registry.type=LDAP/' "${jtsProps}"
+cat >> "${jtsProps}" <<LDAP_CONFIG
+com.ibm.team.repository.user.registry.ldap.registryLocation=ldap\://${ldapFqdn}\:${ldapPort}
+com.ibm.team.repository.user.registry.ldap.registryUserName=${ldapBindDn}
+com.ibm.team.repository.user.registry.ldap.registryPassword=${ldapBindPassword}
+com.ibm.team.repository.user.registry.ldap.baseUserDN=ou\=Users,${ldapBaseDn}
+com.ibm.team.repository.user.registry.ldap.baseGroupDN=ou\=Groups,${ldapBaseDn}
+com.ibm.team.repository.user.registry.ldap.groupMapping=JazzAdmins\=JazzAdmins,JazzUsers\=JazzUsers,JazzProjectAdmins\=JazzProjectAdmins,JazzGuests\=JazzGuests
+com.ibm.team.repository.user.registry.ldap.membersOfGroup=uniqueMember
+com.ibm.team.repository.user.registry.ldap.groupNameAttribute=cn
+com.ibm.team.repository.user.registry.ldap.userAttributesMapping=userId\=uid,name\=cn,emailAddress\=mail
+LDAP_CONFIG
+chown "${jazzAdmin}:${jazzAdmin}" "${jtsProps}"
 
 su - "${jazzAdmin}" <<-SCRIPT
 
