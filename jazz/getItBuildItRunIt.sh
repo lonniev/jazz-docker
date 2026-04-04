@@ -620,7 +620,11 @@ su - "${jazzAdmin}" <<-SCRIPT
     for app in "\${apps[@]}"
     do
         echo "Preparing \${app} for migration to Jazz Authentication Server Single-Sign-On..."
-        ./repotools-\${app}.sh -migrateToJsaSso authServerUserId=${jazzAdmin} authServerPassword=${jazzAdminPassword} authServerURL=https://${clmFqdn}:${jasHttpsPort}/oidc/endpoint/jazzop 2>&1 | grep -v -f /tmp/jazz_log_filter
+        # Use ADMIN for JAS auth — jazz_admin's LDAP group membership DN
+        # (ou=Service_Accounts) doesn't match its user DN (ou=Users), so JAS
+        # can't resolve its group permissions. ADMIN is in JazzAdmins with
+        # a matching ou=Users DN.
+        ./repotools-\${app}.sh -migrateToJsaSso authServerUserId=ADMIN authServerPassword=ADMIN authServerURL=https://${clmFqdn}:${jasHttpsPort}/oidc/endpoint/jazzop 2>&1 | grep -v -f /tmp/jazz_log_filter
     done
 
 SCRIPT
@@ -662,7 +666,8 @@ su - "${jazzAdmin}" <<-SCRIPT
     cd "${jtsPath}/server"
     export JAVA_HOME="${jtsPath}/server/jre"
 
-    ./repotools-jts.sh -syncUsers adminUserId=${jazzAdmin} adminPassword=${jazzAdminPassword} repositoryURL=https://${clmFqdn}:${clmPort}/jts 2>&1 | grep -v -f /tmp/jazz_log_filter
+    # Use ADMIN for syncUsers — same DN mismatch issue as migrateToJsaSso
+    ./repotools-jts.sh -syncUsers adminUserId=ADMIN adminPassword=ADMIN repositoryURL=https://${clmFqdn}:${clmPort}/jts 2>&1 | grep -v -f /tmp/jazz_log_filter
 
     status=\$?
     if [[ \$status -eq 0 ]]; then
