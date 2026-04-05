@@ -645,6 +645,15 @@ su - "${jazzAdmin}" <<-SCRIPT
 
     ./start-jazz
 
+    # Sync LTPA keys: JAS and CLM must share the same keys or SSO tokens
+    # will be rejected (CWWKS4001I). Copy JAS keys to CLM before startup.
+    jasLtpa="${jasPath}/wlp/usr/servers/jazzop/resources/security/ltpa.keys"
+    clmLtpa="${jtsPath}/server/liberty/servers/clm/resources/security/ltpa.keys"
+    if [[ -f "\${jasLtpa}" ]]; then
+        cp -f "\${jasLtpa}" "\${clmLtpa}"
+        echo "LTPA keys synced from JAS to CLM"
+    fi
+
     cd "${jtsPath}/server"
 
     # try to start up Jazz
@@ -659,6 +668,25 @@ SCRIPT
 
 # Give Liberty time to fully start before running syncUsers
 sleep 30
+
+# Diagnostic dump — show exactly what the CLM server looks like before syncUsers
+tput -T linux bold; echo "${green}=== Pre-syncUsers Diagnostic Dump ==="; tput -T linux sgr0
+echo "--- teamserver.properties (registry/ldap) ---"
+grep -i 'registry\|ldap\|group' "${jtsPath}/server/conf/jts/teamserver.properties" 2>/dev/null | grep -v '^#'
+echo "--- CLM server.xml includes ---"
+grep -i 'include\|ldap\|basic\|Registry' "${jtsPath}/server/liberty/servers/clm/server.xml" 2>/dev/null
+echo "--- CLM conf/ directory ---"
+ls -la "${jtsPath}/server/liberty/servers/clm/conf/" 2>/dev/null
+echo "--- ldapUserRegistry.xml content ---"
+cat "${jtsPath}/server/liberty/servers/clm/conf/ldapUserRegistry.xml" 2>/dev/null
+echo "--- LTPA key hashes ---"
+md5sum "${jasPath}/wlp/usr/servers/jazzop/resources/security/ltpa.keys" "${jtsPath}/server/liberty/servers/clm/resources/security/ltpa.keys" 2>/dev/null
+echo "--- CLM messages.log (last 10 LDAP/registry lines) ---"
+grep -i 'ldap\|registry\|CWWKS\|CWIMK\|federation\|wim' "${jtsPath}/server/liberty/servers/clm/logs/messages.log" 2>/dev/null | tail -10
+echo "--- JAS messages.log (last 5 error/LDAP lines) ---"
+grep -i 'error\|ldap\|CWWKS1100\|CWIML' "${jasPath}/wlp/usr/servers/jazzop/logs/messages.log" 2>/dev/null | tail -5
+echo "--- syncUsers will authenticate as: ${jazzAdmin} to https://${clmFqdn}:${clmPort}/jts ---"
+echo "=== End Diagnostic Dump ==="
 
 # Sync LDAP users into Jazz's internal user database (server must be running)
 tput -T linux bold; echo "${green}Synchronizing LDAP users into Jazz Team Server..."; tput -T linux sgr0
