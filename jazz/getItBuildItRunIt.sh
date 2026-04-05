@@ -582,7 +582,16 @@ chown "${jazzAdmin}":"${jazzAdmin}" "${jtsPath}/server/liberty/servers/clm/serve
 # for group membership lookups. Setup stored UNSUPPORTED because DETECT
 # couldn't find LDAP (Liberty had basicUserRegistry during setup). LIBERTY
 # delegates to Liberty's own registry — no need for Jazz-specific LDAP props.
-sed -i 's/com.ibm.team.repository.user.registry.type=.*/com.ibm.team.repository.user.registry.type=LIBERTY/' "${jtsPath}/server/conf/jts/teamserver.properties"
+tput -T linux bold; echo "${green}Switching Jazz user registry from UNSUPPORTED to LIBERTY..."; tput -T linux sgr0
+jtsProps="${jtsPath}/server/conf/jts/teamserver.properties"
+echo "  Before: $(grep 'user.registry.type' "${jtsProps}" 2>/dev/null)"
+sed -i 's/com.ibm.team.repository.user.registry.type=.*/com.ibm.team.repository.user.registry.type=LIBERTY/' "${jtsProps}"
+echo "  After:  $(grep 'user.registry.type' "${jtsProps}" 2>/dev/null)"
+# Verify the change actually took effect
+if ! grep -q 'type=LIBERTY' "${jtsProps}" 2>/dev/null; then
+    echo "${red}WARNING: sed failed to change registry type. Appending LIBERTY setting."
+    echo "com.ibm.team.repository.user.registry.type=LIBERTY" >> "${jtsProps}"
+fi
 
 su - "${jazzAdmin}" <<-SCRIPT
 
