@@ -578,20 +578,27 @@ sed -i.bak1 's/<!--include location="conf\/ldapUserRegistry.xml"\/-->/<include l
 sed -i.bak2 's/<include location="conf\/basicUserRegistry.xml"\/>/<!--include location="conf\/basicUserRegistry.xml"\/-->/g' "${jtsPath}/server/liberty/servers/clm/server.xml"
 chown "${jazzAdmin}":"${jazzAdmin}" "${jtsPath}/server/liberty/servers/clm/server.xml"
 
-# Tell Jazz to use Liberty's federated user registry (which now includes LDAP)
-# for group membership lookups. Setup stored UNSUPPORTED because DETECT
-# couldn't find LDAP (Liberty had basicUserRegistry during setup). LIBERTY
-# delegates to Liberty's own registry — no need for Jazz-specific LDAP props.
-tput -T linux bold; echo "${green}Switching Jazz user registry from UNSUPPORTED to LIBERTY..."; tput -T linux sgr0
+# Configure Jazz's LDAP user registry. Setup stored UNSUPPORTED because
+# DETECT couldn't find LDAP (Liberty had basicUserRegistry during setup).
+# These property names were verified against a working ELM 7.0.2 installation.
+tput -T linux bold; echo "${green}Configuring Jazz LDAP user registry in teamserver.properties..."; tput -T linux sgr0
 jtsProps="${jtsPath}/server/conf/jts/teamserver.properties"
-echo "  Before: $(grep 'user.registry.type' "${jtsProps}" 2>/dev/null)"
-sed -i 's/com.ibm.team.repository.user.registry.type=.*/com.ibm.team.repository.user.registry.type=LIBERTY/' "${jtsProps}"
-echo "  After:  $(grep 'user.registry.type' "${jtsProps}" 2>/dev/null)"
-# Verify the change actually took effect
-if ! grep -q 'type=LIBERTY' "${jtsProps}" 2>/dev/null; then
-    echo "${red}WARNING: sed failed to change registry type. Appending LIBERTY setting."
-    echo "com.ibm.team.repository.user.registry.type=LIBERTY" >> "${jtsProps}"
-fi
+
+# Replace UNSUPPORTED with LDAP
+sed -i 's/com.ibm.team.repository.user.registry.type=.*/com.ibm.team.repository.user.registry.type=LDAP/' "${jtsProps}"
+
+# Append the LDAP properties Jazz needs (correct internal property names)
+cat >> "${jtsProps}" <<LDAP_PROPS
+com.ibm.team.repository.ldap.baseGroupDN=ou\=Groups,${ldapBaseDn}
+com.ibm.team.repository.ldap.baseUserDN=ou\=Users,${ldapBaseDn}
+com.ibm.team.repository.ldap.findGroupsForUserQuery=uniqueMember\={USER-DN}
+com.ibm.team.repository.ldap.membersOfGroup=uniqueMember
+com.ibm.team.repository.ldap.registryLocation=ldap\://${ldapFqdn}\:${ldapPort}
+com.ibm.team.repository.ldap.userSearchObjectClassFilter=objectClass\=posixAccount
+LDAP_PROPS
+
+echo "  Registry type: $(grep 'user.registry.type' "${jtsProps}" 2>/dev/null)"
+echo "  LDAP props: $(grep -c 'repository.ldap\.' "${jtsProps}" 2>/dev/null) entries"
 
 su - "${jazzAdmin}" <<-SCRIPT
 
