@@ -26,7 +26,7 @@
             userFilter="(&amp;(uid=%v)(objectclass=posixAccount))"
             groupFilter="(&amp;(cn=%v)(|(objectclass=groupOfNames)(objectclass=groupOfUniqueNames)))"
             groupIdMap="*:cn"
-            groupMemberIdMap="*:uniqueMember"
+            groupMemberIdMap="groupOfUniqueNames:uniqueMember"
             userIdMap="*:uid"/>
     </ldapRegistry>
 
