@@ -1,6 +1,6 @@
 # Jazz ELM 7.0.3 Deployment Playbook
 
-This playbook walks through configuring and running the Docker Compose stack to provision a fully operational IBM Engineering Lifecycle Management (ELM) 7.0.3 instance backed by Oracle 19c.
+Zero to fully operational IBM ELM 7.0.3 with Oracle 19c, JAS SSO, and LDAP in under 45 minutes.
 
 ---
 
@@ -9,13 +9,12 @@ This playbook walks through configuring and running the Docker Compose stack to 
 1. [Prerequisites](#1-prerequisites)
 2. [Obtain IBM ELM Installation Media](#2-obtain-ibm-elm-installation-media)
 3. [Configure the Environment](#3-configure-the-environment)
-4. [Build the Docker Images](#4-build-the-docker-images)
-5. [Deploy the Stack](#5-deploy-the-stack)
-6. [Monitor the Provisioning](#6-monitor-the-provisioning)
-7. [Verify the Deployment](#7-verify-the-deployment)
-8. [Enable Let's Encrypt TLS (Production)](#8-enable-lets-encrypt-tls-production)
-9. [Day-2 Operations](#9-day-2-operations)
-10. [Troubleshooting](#10-troubleshooting)
+4. [Build and Deploy](#4-build-and-deploy)
+5. [Monitor the Provisioning](#5-monitor-the-provisioning)
+6. [Verify the Deployment](#6-verify-the-deployment)
+7. [Day-2 Operations](#7-day-2-operations)
+8. [Troubleshooting](#8-troubleshooting)
+9. [How It Works](#9-how-it-works)
 
 ---
 
@@ -34,145 +33,133 @@ This playbook walks through configuring and running the Docker Compose stack to 
 
 - **Docker Engine** 24+ and **Docker Compose** v2
 - **Git**
-- **gcloud CLI** (if hosting ELM media on Google Cloud Storage)
+- **gcloud CLI** (optional, if hosting ELM media on Google Cloud Storage)
 
 ### Accounts
 
-- **Oracle Account** (free) — required to pull the Oracle 19c Docker image
-  1. Go to [oracle.com/account](https://profile.oracle.com/myprofile/account/create-account.jspx) and create a free Oracle account (Oracle SSO) using your email address
-  2. Visit [container-registry.oracle.com](https://container-registry.oracle.com) and sign in with your new Oracle SSO credentials
-  3. Search for `database/enterprise` in the registry catalog
-  4. Click on the repository and review the **Oracle Standard Terms and Restrictions** license agreement
-  5. Click **Accept** — this is a one-time step; it unlocks `docker pull` access for the `database/enterprise` images
-  6. On your Docker host, authenticate:
+- **Oracle Account** (free) -- required to pull the Oracle 19c Docker image
+  1. Create a free account at [oracle.com/account](https://profile.oracle.com/myprofile/account/create-account.jspx)
+  2. Visit [container-registry.oracle.com](https://container-registry.oracle.com), sign in, search for `database/enterprise`
+  3. **Accept the license agreement** (one-time step per repository)
+  4. Authenticate on your Docker host:
      ```bash
      docker login container-registry.oracle.com
-     # Username: your Oracle SSO email
-     # Password: your Oracle SSO password
-     ```
-  7. Verify access:
-     ```bash
-     docker pull container-registry.oracle.com/database/enterprise:19.3.0.0
      ```
 
-  > **Note:** If you receive "denied" or "unauthorized" errors, confirm you accepted the license agreement at container-registry.oracle.com for the specific image repository (`database/enterprise`). Simply having an Oracle account is not enough — the license must be explicitly accepted per repository.
+  > If you get "denied" errors, confirm you accepted the license at container-registry.oracle.com for `database/enterprise`. An Oracle account alone is not enough.
 
 - **IBM Passport Advantage** account (licensed) to download ELM 7.0.3 media
 
-### Network Ports
+### Network
 
-Open the following ports on your host firewall:
+Open these firewall ports:
 
 | Port | Purpose |
 |------|---------|
-| 80/tcp | Traefik HTTP (Let's Encrypt ACME challenge) |
+| 80/tcp | Let's Encrypt ACME HTTP challenge |
 | 9443/tcp | Jazz ELM web UI (HTTPS) |
 | 9643/tcp | Jazz Authentication Server (HTTPS) |
 
-### Network Connectivity to LDAP and Other Internal Services
+### LDAP Connectivity
 
-Docker containers route external traffic through the host's network stack. If your LDAP server, SMTP server, or other services are on a private network (VPN, Tailscale, WireGuard, etc.), the Docker **host** must have connectivity to those services — not the containers themselves.
+Docker containers route through the host's network stack. If your LDAP server is on a private network (VPN, Tailscale, WireGuard), the **Docker host** must have connectivity:
 
-**If your LDAP server is behind a Tailscale network:**
+```bash
+# Install Tailscale on the host if needed
+curl -fsSL https://tailscale.com/install.sh | sh
+sudo tailscale up
 
-1. Install Tailscale on the Docker host:
-   ```bash
-   curl -fsSL https://tailscale.com/install.sh | sh
-   sudo tailscale up
-   ```
+# Verify LDAP is reachable from the host
+ldapsearch -x -H ldap://YOUR_LDAP_HOST:389 -b "dc=example,dc=com" -s base "(objectclass=*)"
+```
 
-2. Verify the host can reach the LDAP server:
-   ```bash
-   ldapsearch -x -H ldap://YOUR_LDAP_HOST:389 -b "dc=example,dc=com" -s base "(objectclass=*)"
-   ```
+### LDAP Directory Requirements
 
-3. Verify from inside a container:
-   ```bash
-   docker exec jazz-clm-container bash -c "echo | timeout 5 bash -c 'cat < /dev/tcp/YOUR_LDAP_HOST/389' && echo 'OK' || echo 'FAIL'"
-   ```
+Your OpenLDAP must have these groups and structure:
 
-If the host can reach LDAP but containers cannot, check that Docker's default bridge network allows external routing (it does by default, but custom iptables rules or firewall policies may block it).
+| Requirement | Detail |
+|-------------|--------|
+| Groups OU | `ou=Groups` under your base DN |
+| Group objectClass | `groupOfUniqueNames` |
+| Member attribute | `uniqueMember` with full DN values |
+| Users OU | `ou=Users` under your base DN |
+| User objectClass | `posixAccount` |
+| Required groups | `JazzAdmins`, `JazzUsers`, `JazzProjectAdmins`, `JazzGuests` |
+| Admin user | Must exist in LDAP, be in `JazzAdmins`, and the `uniqueMember` DN must match the user's actual entry DN |
 
-> **Common symptom:** JAS logs show `javax.naming.CommunicationException: activity.intercax.com:389 [connect timed out]` and all `CRJAZ2871E` errors during SSO migration. This means the JAS Liberty server inside the container cannot reach the LDAP server. Fix the host's network routing first.
+Verify your admin user's group membership:
+```bash
+ldapsearch -x -H ldap://YOUR_LDAP:389 \
+  -b "ou=Groups,dc=example,dc=com" \
+  "(uniqueMember=uid=jazz_admin,ou=Users,dc=example,dc=com)" cn
+# Should return: JazzAdmins (and optionally JazzUsers)
+```
 
 ---
 
 ## 2. Obtain IBM ELM Installation Media
 
-Download the following from IBM Passport Advantage and host them on an HTTP-accessible URL (e.g., a GCS bucket):
+Download from IBM Passport Advantage and host on HTTP-accessible URLs:
 
-| File | Description |
-|------|-------------|
-| `JTS-DCM-CCM-QM-RM-JRS-ENI-repo-7.0.3.zip` | ELM 7.0.3 server repository |
-| `JazzAuthServer-offering-repo-7.0.3.zip` | Jazz Authentication Server |
-| `ELM-Web-Installer-Linux-7.0.3.zip` | IBM Installation Manager (web installer) |
-| `ELM_703_iFix021.zip` | Latest iFix (optional but recommended) |
-| `Rhapsody-DM-Servers-6.0.6.1.zip` | Rhapsody Design Manager (optional) |
+| File | Description | Size |
+|------|-------------|------|
+| `JTS-DCM-CCM-QM-RM-JRS-ENI-repo-7.0.3.zip` | ELM 7.0.3 server repository | ~4 GB |
+| `JazzAuthServer-offering-repo-7.0.3.zip` | Jazz Authentication Server | ~200 MB |
+| `ELM-Web-Installer-Linux-7.0.3.zip` | IBM Installation Manager | ~100 MB |
+| `ELM_703_iFix021.zip` | Latest iFix (recommended) | ~500 MB |
 
 ### Upload to Google Cloud Storage (example)
 
 ```bash
 gcloud auth login
-gcloud config set project YOUR_PROJECT_ID
+gcloud storage cp *.zip gs://YOUR_BUCKET/
 
-gcloud storage cp JTS-DCM-CCM-QM-RM-JRS-ENI-repo-7.0.3.zip gs://ibm_jazz/
-gcloud storage cp JazzAuthServer-offering-repo-7.0.3.zip gs://ibm_jazz/
-gcloud storage cp ELM-Web-Installer-Linux-7.0.3.zip gs://ibm_jazz/
-gcloud storage cp ELM_703_iFix021.zip gs://ibm_jazz/
-
-# Make files publicly accessible for Docker ADD
-gcloud storage objects update gs://ibm_jazz/JTS-DCM-CCM-QM-RM-JRS-ENI-repo-7.0.3.zip --add-acl-grant=entity=allUsers,role=READER
-# Repeat for each file...
+# Make publicly accessible for Docker ADD
+for f in JTS-DCM-CCM-QM-RM-JRS-ENI-repo-7.0.3.zip \
+         JazzAuthServer-offering-repo-7.0.3.zip \
+         ELM-Web-Installer-Linux-7.0.3.zip \
+         ELM_703_iFix021.zip; do
+  gcloud storage objects update "gs://YOUR_BUCKET/$f" \
+    --add-acl-grant=entity=allUsers,role=READER
+done
 ```
 
 ---
 
 ## 3. Configure the Environment
 
-### Clone the repository
-
 ```bash
 git clone https://github.com/lonniev/jazz-docker.git
 cd jazz-docker
+cp .env.template .env
+vi .env
 ```
 
-### Edit `.env`
-
-All site-specific configuration lives in `.env`. Edit these values:
+Edit these required values in `.env`:
 
 ```bash
-# --- Required: Your Jazz server's public hostname ---
 CLM_FQDN="your-elm-server.example.com"
 
-# --- Required: Passwords (change these!) ---
-ORACLE_PASSWORD="YourOraclePassword"
-ORACLE_SYS_PASSWORD="YourSysPassword"
-JAZZ_ADMIN_PASSWORD="YourJazzPassword"
+ORACLE_PASSWORD="YourOraclePass42"
+ORACLE_SYS_PASSWORD="YourSysPass42"
+JAZZ_ADMIN_PASSWORD="your_ldap_password"
 
-# --- Required: URLs to your hosted ELM media ---
-JAZZ_DISTRO_URL="https://storage.googleapis.com/your-bucket/JTS-DCM-CCM-QM-RM-JRS-ENI-repo-7.0.3.zip"
-JAZZ_JAS_URL="https://storage.googleapis.com/your-bucket/JazzAuthServer-offering-repo-7.0.3.zip"
-IBMWEBINSTALLER_DISTRO_URL="https://storage.googleapis.com/your-bucket/ELM-Web-Installer-Linux-7.0.3.zip"
-JAZZ_IFIX_URL="https://storage.googleapis.com/your-bucket/ELM_703_iFix021.zip"
+JAZZ_DISTRO_URL="https://storage.googleapis.com/YOUR_BUCKET/JTS-DCM-CCM-QM-RM-JRS-ENI-repo-7.0.3.zip"
+JAZZ_JAS_URL="https://storage.googleapis.com/YOUR_BUCKET/JazzAuthServer-offering-repo-7.0.3.zip"
+IBMWEBINSTALLER_DISTRO_URL="https://storage.googleapis.com/YOUR_BUCKET/ELM-Web-Installer-Linux-7.0.3.zip"
+JAZZ_IFIX_URL="https://storage.googleapis.com/YOUR_BUCKET/ELM_703_iFix021.zip"
 
-# --- Required: LDAP configuration ---
 LDAP_FQDN="your-ldap-server.example.com"
-LDAP_PORT=389
 LDAP_BASE_DN="dc=example,dc=com"
+LDAP_BIND_DN="uid=jazz_admin,ou=Users,dc=example,dc=com"
+LDAP_BIND_PASSWORD="your_ldap_password"
 
-# --- Optional ---
 ACME_EMAIL="you@example.com"
-JAZZ_USER="jazz_admin"
 ```
 
-### Log into Oracle Container Registry
+**Important:** `JAZZ_ADMIN_PASSWORD` must match the LDAP password for `JAZZ_USER` (default: `jazz_admin`).
 
-```bash
-docker login container-registry.oracle.com
-# Enter your Oracle SSO email and password
-```
-
-### Set up Let's Encrypt directory (if using ACME later)
+### Prepare Let's Encrypt
 
 ```bash
 mkdir -p letsencrypt
@@ -182,315 +169,265 @@ chmod 600 letsencrypt/acme.json
 
 ---
 
-## 4. Build the Docker Images
+## 4. Build and Deploy
 
 ```bash
+# Build the Jazz CLM image (~15-30 min, downloads ~5 GB of ELM media)
 docker compose build
-```
 
-This takes 15-30 minutes on first run. The Jazz CLM image build:
-- Downloads ~5 GB of ELM installation media via the URLs in `.env`
-- Downloads the Oracle JDBC driver (`ojdbc8.jar`) from Maven Central
-- Installs IBM Installation Manager
-- Installs ELM 7.0.3 and JAS via silent install
-- Applies the iFix overlay
-
-The Oracle image is pulled directly from Oracle Container Registry (no local build).
-
----
-
-## 5. Deploy the Stack
-
-### Option A: All at once
-
-```bash
+# Deploy everything
 docker compose up -d
 ```
 
-The `depends_on` conditions handle ordering:
-- **traefik** starts first
-- **jazz_oracle** starts next, marked healthy only after schemas are created
-- **jazz_clm** starts last, after Oracle is healthy
-
-### Option B: Step by step (recommended for first run)
-
-```bash
-# 1. Start the reverse proxy
-docker compose up -d traefik
-
-# 2. Start Oracle — first run takes 15-20 minutes to create the database
-docker compose up -d jazz_oracle
-
-# 3. Watch Oracle progress
-docker compose logs -f jazz_oracle
-
-# Wait for: "=== Jazz CLM: All Oracle schemas ready ==="
-# Then: "DATABASE IS READY TO USE!"
-
-# 4. Start Jazz ELM
-docker compose up -d jazz_clm
-
-# 5. Watch Jazz progress
-docker compose logs -f jazz_clm
-```
+The `depends_on` conditions handle ordering automatically:
+1. **traefik** starts first
+2. **jazz_oracle** starts, healthcheck waits for schemas (~15-20 min on first run)
+3. **jazz_clm** starts after Oracle is healthy, runs full provisioning (~25-35 min)
 
 ---
 
-## 6. Monitor the Provisioning
-
-### What to expect in the logs
-
-The full provisioning takes approximately **45-60 minutes** on first run:
-
-| Phase | Duration | What's happening | Log indicator |
-|-------|----------|------------------|---------------|
-| Oracle DB creation | 15-20 min | Creating CDB, PDB, datafiles | `8% complete`... `100% complete` |
-| Oracle schema creation | 1-2 min | Creating 11 Jazz schemas + OAuth | `=== Jazz CLM: All Oracle schemas ready ===` |
-| ELM install + iFix | 5-10 min | Silent install via IBM IM | `userinstc Installation...` |
-| Oracle readiness wait | 0-20 min | JDBC probe backoff loop | `Phase N/9: port open...` |
-| Liberty server start | 2-3 min | Starting CLM Liberty server | `Server clm created` |
-| repotools -setup | 15-25 min | Database table creation, app registration | `Executing step: Configure Database` |
-| JAS SSO migration | 3-5 min | Preparing apps for SSO | `CRJAZ2884I ... successfully prepared` |
-| Final server start | 2-3 min | Starting JAS + Liberty | `Done. Leaving the Jazz Services running.` |
-
-### Useful monitoring commands
+## 5. Monitor the Provisioning
 
 ```bash
-# Watch all containers
-docker compose logs -f
-
-# Watch just Jazz
+# Watch the full provisioning
 docker compose logs -f jazz_clm
+```
 
-# Watch Liberty server log (detailed setup progress)
+### What to expect
+
+| Log Message | Meaning |
+|-------------|---------|
+| `LDAP bind and user lookup succeeded.` | LDAP credentials validated early |
+| `Oracle is ready` | JDBC connection to Oracle confirmed |
+| `Server clm created` | Liberty server initialized |
+| `Setup completed successfully` | All databases created, apps registered |
+| `CRJAZ2868I ... successfully migrated` | JAS SSO migration complete (all 7 apps) |
+| `LTPA keys synced from JAS to CLM` | Shared token keys for SSO |
+| `Configuring Jazz LDAP user registry` | LDAP properties injected |
+| `User synchronization has been successfully requested` | LDAP users/groups synced |
+| `Done. Leaving the Jazz Services running.` | Provisioning complete |
+
+### Other monitoring commands
+
+```bash
+# Oracle progress
+docker compose logs -f jazz_oracle
+
+# Liberty server log (detailed)
 docker exec jazz-clm-container tail -f \
   /opt/IBM/JazzTeamServer/server/liberty/servers/clm/logs/console.log
 
-# Check Oracle health
+# Oracle health status
 docker inspect --format='{{.State.Health.Status}}' jazz-oracle-container
 
-# Check Oracle alert log
-docker exec jazz-oracle-container tail -f \
-  /opt/oracle/diag/rdbms/orclcdb/ORCLCDB/trace/alert_ORCLCDB.log
+# JAS log
+docker exec jazz-clm-container cat \
+  /opt/IBM/JazzAuthServer/wlp/usr/servers/jazzop/logs/messages.log
 ```
 
 ---
 
-## 7. Verify the Deployment
+## 6. Verify the Deployment
 
-### From the Docker host
+### Browser
 
-```bash
-# Jazz Team Server
-curl -k https://localhost:9443/jts/web
+Navigate to these URLs (replace `CLM_FQDN` with your hostname):
 
-# Jazz Authentication Server
-curl -k https://localhost:9643/oidc/endpoint/jazzop/.well-known/openid-configuration
-```
-
-### From a browser (requires DNS or /etc/hosts)
-
-Add to your `/etc/hosts` (for local testing):
-```
-127.0.0.1  jas-elm703.intercax.com
-```
-
-Then browse to:
-
-| URL | Purpose |
-|-----|---------|
-| `https://CLM_FQDN:9443/jts` | Jazz Team Server admin |
-| `https://CLM_FQDN:9443/ccm` | Change and Configuration Management |
-| `https://CLM_FQDN:9443/rm` | Requirements Management (DOORS Next) |
-| `https://CLM_FQDN:9443/qm` | Quality Management (ETM) |
+| URL | Application |
+|-----|-------------|
+| `https://CLM_FQDN:9443/jts` | Jazz Team Server (admin) |
+| `https://CLM_FQDN:9443/ccm` | Engineering Workflow Management |
+| `https://CLM_FQDN:9443/rm` | DOORS Next (Requirements) |
+| `https://CLM_FQDN:9443/qm` | Engineering Test Management |
 | `https://CLM_FQDN:9443/gc` | Global Configuration Management |
-| `https://CLM_FQDN:9443/relm` | Engineering Lifecycle Optimization |
-| `https://CLM_FQDN:9643/oidc/endpoint/jazzop/.well-known/openid-configuration` | JAS OIDC discovery |
+| `https://CLM_FQDN:9443/relm` | Engineering Insights |
+| `https://CLM_FQDN:9443/dcc` | Data Collection Component |
+| `https://CLM_FQDN:9443/lqe` | Lifecycle Query Engine |
 
-Default admin credentials: the `JAZZ_USER` / `JAZZ_ADMIN_PASSWORD` from `.env`.
+Log in with any LDAP user that is in the `JazzUsers` or `JazzAdmins` group.
 
----
-
-## 8. Enable Let's Encrypt TLS (Production)
-
-When deploying to a host with real public DNS:
-
-1. Ensure `CLM_FQDN` in `.env` has a DNS A record pointing to your host's public IP
-
-2. Uncomment the ACME lines in `docker-compose.yml`:
-   ```yaml
-   # In traefik command section, uncomment:
-   - "--certificatesresolvers.myresolver.acme.httpchallenge=true"
-   - "--certificatesresolvers.myresolver.acme.httpchallenge.entrypoint=traefik-entry-http_open"
-   - "--certificatesresolvers.myresolver.acme.email=${ACME_EMAIL}"
-   - "--certificatesresolvers.myresolver.acme.storage=/letsencrypt/acme.json"
-   ```
-
-3. Uncomment the certresolver labels on `jazz_clm`:
-   ```yaml
-   traefik.http.routers.traefix-router-jazz_auth.tls.certresolver: "myresolver"
-   traefik.http.routers.traefix-router-jazz_app.tls.certresolver: "myresolver"
-   ```
-
-4. Ensure `letsencrypt/acme.json` has `chmod 600` permissions
-
-5. Restart traefik:
-   ```bash
-   docker compose restart traefik
-   ```
-
----
-
-## 9. Day-2 Operations
-
-### Stop the stack (preserving data)
+### CLI verification
 
 ```bash
-docker compose down
+# JTS health
+curl -sk https://localhost:9443/jts/web | head -5
+
+# JAS OIDC discovery
+curl -sk https://localhost:9643/oidc/endpoint/jazzop/.well-known/openid-configuration | python3 -m json.tool
+
+# Verify LDAP registry type
+docker exec jazz-clm-container grep 'registry.type' \
+  /opt/IBM/JazzTeamServer/server/conf/jts/teamserver.properties
+# Should show: com.ibm.team.repository.user.registry.type=LDAP
 ```
 
-### Restart the stack (data persists in volumes)
+---
+
+## 7. Day-2 Operations
+
+### Stop / restart (data preserved)
 
 ```bash
+docker compose down      # stop
+docker compose up -d     # restart (~2 min, skips provisioning)
+```
+
+### Full reset
+
+```bash
+docker compose down -v                      # destroy volumes
+docker compose build --no-cache jazz_clm    # rebuild image
+docker compose up -d                        # fresh provisioning
+```
+
+### Apply a new iFix
+
+```bash
+# 1. Upload new iFix to your hosting location
+# 2. Update JAZZ_IFIX_URL in .env
+# 3. Rebuild
+docker compose down -v
+docker compose build --no-cache jazz_clm
 docker compose up -d
 ```
 
-Oracle restarts in ~30 seconds on subsequent runs (vs. 15-20 minutes on first run). Jazz detects the existing setup and skips provisioning.
-
-### Full reset (destroy all data)
-
-```bash
-docker compose down -v
-```
-
-This removes the `oracle-data`, `jazz-home`, and `jazz-installed` volumes. Next `up` will re-provision everything from scratch.
-
-### View running containers
-
-```bash
-docker compose ps
-```
-
-### Enter a container shell
+### Enter container shells
 
 ```bash
 docker exec -it jazz-clm-container bash
 docker exec -it jazz-oracle-container bash
 ```
 
-### Rebuild after configuration changes
-
-```bash
-# If you changed .env, Dockerfile, or templates:
-docker compose build jazz_clm
-docker compose up -d jazz_clm
-
-# If you changed oracle/createschema.sh (mounted as volume):
-# No rebuild needed — just restart Oracle:
-docker compose restart jazz_oracle
-```
-
-### Apply a new iFix
-
-1. Upload the new iFix zip to your GCS bucket
-2. Update `JAZZ_IFIX_URL` in `.env`
-3. Rebuild and redeploy:
-   ```bash
-   docker compose build jazz_clm
-   docker compose down
-   docker compose up -d
-   ```
-
 ---
 
-## 10. Troubleshooting
+## 8. Troubleshooting
 
-### Oracle: "DATABASE SETUP WAS NOT SUCCESSFUL"
+### CRRTC8030E: Data warehouse creation failed
 
-**ORA-01157: cannot identify/lock data file** — Tablespace datafiles were created with relative paths. Fixed in current version. Solution: `docker compose down -v` and start fresh.
+**Cause:** Oracle DW_JAZZ user lacks `CREATE TABLESPACE` privilege, or `db.base.folder` path doesn't exist locally.
 
-### Jazz: "CRJAZ1840W ... oracle.jdbc.OracleDriver"
-
-The JDBC driver is not at the expected location. Verify:
+**Check:** Oracle alert log for ORA-1031:
 ```bash
-docker exec jazz-clm-container ls -la /opt/IBM/JazzTeamServer/server/oracle/ojdbc8.jar
+docker exec jazz-oracle-container grep 'ORA-1031' \
+  /opt/oracle/diag/rdbms/*/*/trace/alert_*.log
 ```
 
-### Jazz: "CRJAZ2654E ... SQLCODE: 17067"
+**Fix:** Current version grants DBA to DW_JAZZ and creates the db.base.folder directory locally.
 
-Invalid Oracle JDBC URL. The `db.jdbc.location` in `parameters.properties` must be in IBM's format:
-```
-thin:username/{password}@//hostname:port/servicename
-```
-Jazz prepends `jdbc:oracle:` to this value.
+### CRJAZ2871E: JAS auth invalid during SSO migration
 
-### Jazz: "CRJAZ1860E ... could not be established with the following URI"
+**Cause:** JAS `appConfig.xml` was overwritten by `start-jazz` with defaults that include `localUserRegistry.xml` instead of our `ldapUserRegistry.xml`.
 
-Jazz can't reach itself via `CLM_FQDN`. The `extra_hosts` entry in `docker-compose.yml` maps it to `127.0.0.1` for local dev. Verify:
+**Check:** Verify our config was restored:
 ```bash
-docker exec jazz-clm-container getent hosts jas-elm703.intercax.com
+docker exec jazz-clm-container grep 'ldapUserRegistry\|localUserRegistry' \
+  /opt/IBM/JazzAuthServer/wlp/usr/servers/jazzop/appConfig.xml
+```
+
+### CRJAZ1394E: User not in repository group
+
+**Cause:** Jazz's `teamserver.properties` has `user.registry.type=UNSUPPORTED` (DETECT failed during setup because Liberty had basicUserRegistry).
+
+**Check:**
+```bash
+docker exec jazz-clm-container grep 'registry.type' \
+  /opt/IBM/JazzTeamServer/server/conf/jts/teamserver.properties
+```
+
+**Fix:** Must be `type=LDAP` with the correct `com.ibm.team.repository.ldap.*` properties. Current version injects these automatically after setup.
+
+### CRJAZ2902E: Insufficient permissions (syncUsers)
+
+**Cause:** Jazz admin user can authenticate but isn't recognized as JazzAdmin. Usually means LDAP group membership DN doesn't match the user's entry DN.
+
+**Check:**
+```bash
+# Verify the admin user's group membership DN matches
+ldapsearch -x -H ldap://YOUR_LDAP:389 \
+  -b "ou=Groups,dc=example,dc=com" \
+  "(uniqueMember=uid=jazz_admin,ou=Users,dc=example,dc=com)" cn
+```
+
+### CWWKS4001I: Security token cannot be validated
+
+**Cause:** LTPA keys differ between JAS and CLM Liberty servers.
+
+**Check:**
+```bash
+docker exec jazz-clm-container md5sum \
+  /opt/IBM/JazzAuthServer/wlp/usr/servers/jazzop/resources/security/ltpa.keys \
+  /opt/IBM/JazzTeamServer/server/liberty/servers/clm/resources/security/ltpa.keys
+```
+
+**Fix:** Current version copies JAS LTPA keys to CLM before final startup.
+
+### LDAP error code 49 - Invalid Credentials
+
+**Cause:** LDAP bind DN or password in `.env` is wrong.
+
+**Check:** The early validation will catch this:
+```
+LDAP validation failed: FAIL_BIND: ...
 ```
 
 ### Oracle readiness probe times out
 
-Oracle first-time init can take 15-20+ minutes. The backoff schedule allows ~30 minutes. If still timing out, check Oracle logs:
+Oracle first-time init can take 15-20+ minutes. The backoff schedule allows ~30 minutes. Check Oracle logs:
 ```bash
 docker compose logs jazz_oracle | tail -50
 ```
 
-### log4j OSGI NullPointerException in repotools
-
-Harmless. IBM repotools runs outside the Liberty OSGI container; log4j's service loader throws a benign NPE. Filtered from output in current version.
-
-### Need a completely clean start
+### Complete clean start
 
 ```bash
 docker compose down -v
 docker rmi clm-jazz:latest
-docker compose build
+docker compose build --no-cache
 docker compose up -d
 ```
 
 ---
 
-## Architecture Reference
+## 9. How It Works
 
-```
-                    +----------------------------------+
-  Internet --:80--> |          Traefik v3.6             |
-             :9443->|   (TLS termination, ACME certs)   |
-             :9643->|                                    |
-                    +------+----------------+-----------+
-                           |                |
-                    traefik_network   traefik_network
-                           |                |
-                    +------v------+  +------v----------+
-                    |  Jazz ELM   |  |  Jazz Auth      |
-                    |  (Liberty)  |  |  Server (JAS)   |
-                    |  :9443      |  |  :9643           |
-                    +------+------+  +------+----------+
-                           |                |
-                       service_network------+
-                           |
-                    +------v------------------+
-                    |   Oracle 19c EE         |
-                    |   PDB: JAZZPDB          |
-                    |   :1521                 |
-                    |   11 schemas + OAuth    |
-                    +-------------------------+
-```
+The provisioning script (`getItBuildItRunIt.sh`) runs inside the `jazz_clm` container at startup and executes these phases:
 
-### Docker Volumes
+### Phase 1: Install ELM
+- Unzips ELM and JAS installation media
+- Runs IBM Installation Manager (`userinstc`) for silent install
+- Applies iFix overlay (file patches + WAR replacements)
+- Relocates installed files to `/opt/IBM`
 
-| Volume | Contents | Purpose |
-|--------|----------|---------|
-| `oracle-data` | Oracle datafiles, redo logs | Database persistence across restarts |
-| `jazz-home` | `/home/jazz_admin` | Jazz admin user home, setup marker file |
-| `jazz-installed` | `/opt/IBM` | Installed Jazz server + JAS binaries |
+### Phase 2: Validate dependencies
+- Validates LDAP credentials early (bind + user search)
+- Waits for Traefik (port 8080)
+- Waits for Oracle with backoff probe (up to ~30 min)
+- Installs Oracle JDBC driver to JAS and CLM
 
-### Docker Networks
+### Phase 3: Configure and setup
+- Generates `parameters.properties` from template (Oracle JDBC, DW, LDAP, licenses)
+- Starts CLM Liberty server
+- Runs `repotools-jts.sh -setup` (creates all databases, registers apps, configures DW)
+- Creates `jazz_admin` user with JazzAdmins role
+- Prepares all 7 apps for JAS SSO migration
+- Fixes full-text index paths to absolute
 
-| Network | Members | Purpose |
-|---------|---------|---------|
-| `traefik_network` | traefik, whoami, jazz_clm | External-facing traffic routing |
-| `service_network` | traefik, jazz_oracle, jazz_clm | Internal service communication |
+### Phase 4: JAS SSO
+- Switches CLM Liberty from `basicUserRegistry` to `ldapUserRegistry`
+- Generates JAS `appConfig.xml` (Oracle datasource + LDAP)
+- Starts JAS, restores custom config after `start-jazz` overwrites it, restarts JAS
+- Runs `migrateToJsaSso` for all 7 apps (JTS, CCM, RM, GC, QM, RELM, DCC)
+- Syncs LTPA keys from JAS to CLM
+
+### Phase 5: LDAP integration
+- Injects Jazz LDAP properties into `teamserver.properties`:
+  - `com.ibm.team.repository.user.registry.type=LDAP`
+  - `com.ibm.team.repository.ldap.baseGroupDN`, `baseUserDN`, `registryLocation`
+  - `com.ibm.team.repository.ldap.findGroupsForUserQuery=uniqueMember={USER-DN}`
+  - `com.ibm.team.repository.ldap.membersOfGroup=uniqueMember`
+  - `com.ibm.team.repository.ldap.userSearchObjectClassFilter=objectClass=posixAccount`
+- Starts JAS and CLM for production
+- Runs `repotools-jts.sh -syncUsers` to import LDAP users/groups
+
+### On subsequent restarts
+The script checks for `/home/jazz_admin/jazzIsSetup` and skips all provisioning phases, going directly to server startup.
