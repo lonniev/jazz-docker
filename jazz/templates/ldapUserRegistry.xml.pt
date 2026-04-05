@@ -30,6 +30,9 @@
             userIdMap="*:uid"/>
     </ldapRegistry>
 
+    <!-- LDAP debug trace — remove after LDAP group resolution is verified working -->
+    <logging traceSpecification="com.ibm.ws.security.*=all:com.ibm.ws.wim.*=all:com.ibm.ws.security.wim.*=all"/>
+
     <administrator-role>
 		<user>@!jtsUserName!@</user>
 	</administrator-role>
